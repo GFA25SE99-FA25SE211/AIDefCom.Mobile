@@ -48,7 +48,8 @@ export const LoginScreen = () => {
   const googleAuthRequestConfig: Partial<GoogleAuthRequestConfig> = {
     clientId: platformFallbackClientId,
     iosClientId: googleOAuthConfig.iosClientId || platformFallbackClientId,
-    androidClientId: googleOAuthConfig.androidClientId || platformFallbackClientId,
+    androidClientId:
+      googleOAuthConfig.androidClientId || platformFallbackClientId,
     webClientId: googleOAuthConfig.webClientId || platformFallbackClientId,
     responseType: "id_token",
     selectAccount: true,
@@ -112,7 +113,13 @@ export const LoginScreen = () => {
 
     const success = await login(email.trim(), password);
     if (success) {
-      navigation.replace("VoiceRegistration");
+      navigation.replace("Dashboard");
+    } else {
+      Toast.show({
+        type: "error",
+        text1: "Đăng nhập thất bại",
+        text2: "Tài khoản hoặc mật khẩu không chính xác",
+      });
     }
   };
 
@@ -126,7 +133,7 @@ export const LoginScreen = () => {
         text2: "Đăng nhập Google thất bại",
       });
     } else {
-      navigation.replace("VoiceRegistration");
+      navigation.replace("Dashboard");
     }
     setIsGoogleLoading(false);
   };
@@ -214,20 +221,24 @@ export const LoginScreen = () => {
                 errors.email ? styles.inputErrorBorder : undefined,
               ]}
             >
-              <MaterialIcons name="email" size={20} color={colors.textSecondary} />
+              <MaterialIcons
+                name="email"
+                size={20}
+                color={colors.textSecondary}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="your.email@example.com"
-              placeholderTextColor={colors.placeholder}
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                if (errors.email) setErrors({ ...errors, email: "" });
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+                placeholderTextColor={colors.placeholder}
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (errors.email) setErrors({ ...errors, email: "" });
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
             </View>
             {errors.email ? (
               <Text style={globalStyles.errorText}>{errors.email}</Text>
@@ -242,7 +253,11 @@ export const LoginScreen = () => {
                 errors.password ? styles.inputErrorBorder : undefined,
               ]}
             >
-              <MaterialIcons name="lock" size={20} color={colors.textSecondary} />
+              <MaterialIcons
+                name="lock"
+                size={20}
+                color={colors.textSecondary}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="Enter your password"
@@ -287,7 +302,7 @@ export const LoginScreen = () => {
             <Text style={styles.rememberText}>Remember me</Text>
           </View>
 
-            <TouchableOpacity
+          <TouchableOpacity
             style={[styles.loginButton, isSubmitting && styles.disabledButton]}
             onPress={handleLogin}
             disabled={isSubmitting}
@@ -304,8 +319,7 @@ export const LoginScreen = () => {
                 <Text style={styles.loginText}>Login</Text>
               )}
             </LinearGradient>
-            </TouchableOpacity>
-
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -434,7 +448,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
     marginBottom: 24,
-    },
+  },
   loginGradient: {
     paddingVertical: 16,
     alignItems: "center",
