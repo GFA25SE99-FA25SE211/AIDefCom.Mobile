@@ -113,7 +113,7 @@ export const LoginScreen = () => {
 
     const success = await login(email.trim(), password);
     if (success) {
-      navigation.replace("Dashboard");
+      navigation.replace("VoiceRegistration");
     } else {
       Toast.show({
         type: "error",
@@ -133,7 +133,7 @@ export const LoginScreen = () => {
         text2: "Đăng nhập Google thất bại",
       });
     } else {
-      navigation.replace("Dashboard");
+      navigation.replace("VoiceRegistration");
     }
     setIsGoogleLoading(false);
   };

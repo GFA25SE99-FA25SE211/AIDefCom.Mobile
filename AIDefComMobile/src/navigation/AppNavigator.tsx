@@ -3,6 +3,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useAuth } from "../context/AuthContext";
 import { LoginScreen } from "../screens/LoginScreen";
+import { VoiceRegistrationScreen } from "../screens/VoiceRegistrationScreen";
 import { VoiceAuthScreen } from "../screens/VoiceAuthScreen";
 import { DashboardScreen } from "../screens/DashboardScreen";
 import { AudioTestScreen } from "../screens/AudioTestScreen";
@@ -11,6 +12,7 @@ import { Loading } from "../components/Loading";
 
 export type RootStackParamList = {
   Login: undefined;
+  VoiceRegistration: undefined;
   VoiceAuth: undefined;
   Dashboard: undefined;
   AudioTest: undefined;
@@ -27,7 +29,7 @@ export const AppNavigator = () => {
   }
 
   const initialRoute: keyof RootStackParamList = user
-    ? "Dashboard"
+    ? "VoiceRegistration"
     : "Login";
 
   return (
@@ -37,6 +39,10 @@ export const AppNavigator = () => {
         initialRouteName={initialRoute}
       >
         <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen
+          name="VoiceRegistration"
+          component={VoiceRegistrationScreen}
+        />
         <Stack.Screen name="VoiceAuth" component={VoiceAuthScreen} />
         <Stack.Screen name="Dashboard" component={DashboardScreen} />
         <Stack.Screen name="AudioTest" component={AudioTestScreen} />
