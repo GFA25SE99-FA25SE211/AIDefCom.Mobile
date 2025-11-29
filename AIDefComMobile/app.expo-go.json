@@ -28,8 +28,7 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.AIDefComMobile",
       "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -45,9 +44,8 @@
       "config": "metro.config.js"
     },
     "plugins": [
-      "expo-dev-client",
-      "expo-web-browser",
-      "./modules/audio-level-monitor/app.plugin.js"
+      "expo-web-browser"
     ]
   }
 }
+

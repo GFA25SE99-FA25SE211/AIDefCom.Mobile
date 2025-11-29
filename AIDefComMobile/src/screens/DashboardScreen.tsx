@@ -10,12 +10,18 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../context/AuthContext";
 import { colors, globalStyles } from "../utils/styles";
 import { defenseSessionService } from "../services/api";
 import { DefenseSession } from "../types/defense";
+import { RootStackParamList } from "../navigation/AppNavigator";
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const DashboardScreen = () => {
+  const navigation = useNavigation<NavigationProp>();
   const { user, logout } = useAuth();
   const [sessions, setSessions] = useState<DefenseSession[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -90,6 +96,24 @@ export const DashboardScreen = () => {
         </TouchableOpacity>
       </View>
 
+      {/* Quick Actions */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate("AudioTest")}
+        >
+          <MaterialIcons name="graphic-eq" size={24} color="white" />
+          <Text style={styles.actionButtonText}>Test Audio Level</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate("AudioRecordingTest")}
+        >
+          <MaterialIcons name="mic" size={24} color="white" />
+          <Text style={styles.actionButtonText}>Test Recording</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>My Defense Sessions</Text>
         <Text style={styles.sectionSubtitle}>
@@ -131,9 +155,8 @@ export const DashboardScreen = () => {
                       Group {session.groupId}
                     </Text>
                     <Text style={styles.sessionId}>
-                      ID: DEF-{session.defenseDate.slice(0, 4)}-{String(
-                        session.id
-                      ).padStart(3, "0")}
+                      ID: DEF-{session.defenseDate.slice(0, 4)}-
+                      {String(session.id).padStart(3, "0")}
                     </Text>
                   </View>
                 </View>
@@ -348,5 +371,32 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  quickActions: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  actionButton: {
+    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  actionButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
   },
 });

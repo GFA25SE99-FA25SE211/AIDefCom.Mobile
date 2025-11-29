@@ -55,30 +55,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const persistAuthData = async (tokenData: TokenResponseDto) => {
-      await AsyncStorage.multiSet([
-        [STORAGE_KEYS.ACCESS_TOKEN, tokenData.accessToken],
-        [STORAGE_KEYS.REFRESH_TOKEN, tokenData.refreshToken],
-        [STORAGE_KEYS.USER_ID, tokenData.userId],
-        [
-          STORAGE_KEYS.USER_DATA,
-          JSON.stringify({
-            id: tokenData.userId,
-            email: tokenData.email,
-            fullName: tokenData.fullName,
+    await AsyncStorage.multiSet([
+      [STORAGE_KEYS.ACCESS_TOKEN, tokenData.accessToken],
+      [STORAGE_KEYS.REFRESH_TOKEN, tokenData.refreshToken],
+      [STORAGE_KEYS.USER_ID, tokenData.userId],
+      [
+        STORAGE_KEYS.USER_DATA,
+        JSON.stringify({
+          id: tokenData.userId,
+          email: tokenData.email,
+          fullName: tokenData.fullName,
           phoneNumber: "",
-            roles: tokenData.roles,
-          }),
-        ],
-      ]);
+          roles: tokenData.roles,
+        }),
+      ],
+    ]);
 
-      setToken(tokenData.accessToken);
-      setUser({
-        id: tokenData.userId,
-        email: tokenData.email,
-        fullName: tokenData.fullName,
-        phoneNumber: "",
-        roles: tokenData.roles,
-      });
+    setToken(tokenData.accessToken);
+    setUser({
+      id: tokenData.userId,
+      email: tokenData.email,
+      fullName: tokenData.fullName,
+      phoneNumber: "",
+      roles: tokenData.roles,
+    });
   };
 
   const ensureValidRoles = (tokenData: TokenResponseDto) => {
@@ -101,11 +101,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     });
 
     let errorMessage = "Đã có lỗi xảy ra khi đăng nhập";
-    if (error.code === "ECONNREFUSED" || error.message?.includes("Network Error")) {
+    if (
+      error.code === "ECONNREFUSED" ||
+      error.message?.includes("Network Error")
+    ) {
       errorMessage =
         "Không thể kết nối đến server. Kiểm tra lại kết nối mạng và đảm bảo API đang chạy.";
-    } else if (error.response?.status === 401 || error.response?.status === 500) {
-      const details = error.response?.data?.details || error.response?.data?.message;
+    } else if (
+      error.response?.status === 401 ||
+      error.response?.status === 500
+    ) {
+      const details =
+        error.response?.data?.details || error.response?.data?.message;
       if (
         details?.includes("Invalid email or password") ||
         details?.includes("email") ||
@@ -116,7 +123,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         errorMessage = details || "Email hoặc mật khẩu không đúng";
       }
     } else if (error.response?.status === 404) {
-      errorMessage = "Không tìm thấy API. Kiểm tra lại URL và đảm bảo API đang chạy.";
+      errorMessage =
+        "Không tìm thấy API. Kiểm tra lại URL và đảm bảo API đang chạy.";
     } else if (error.response?.data?.details) {
       errorMessage = error.response.data.details;
     } else if (error.response?.data?.message) {
@@ -160,7 +168,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       return true;
     } catch (error: any) {
-      handleAuthError(error);
+      console.error("Login error:", error);
+      // Don't show toast here, let the calling component handle it
       return false;
     } finally {
       setIsLoading(false as boolean);

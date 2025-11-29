@@ -1,40 +1,41 @@
 import { VOICE_AUTH_CONFIG } from "../utils/constants";
 
 export interface VoiceResponse {
-  success: boolean;
-  score?: number;
+  success?: boolean;
+  type?: string;
+  user_id?: string;
+  enrollment_count?: number;
+  min_required?: number;
+  is_complete?: boolean;
+  completed?: boolean;
+  enrollment_status?: string;
   message?: string;
+  error?: string;
+  score?: number;
   [key: string]: unknown;
 }
 
 interface VoiceRegistrationPayload {
   audioUri: string;
-  sampleIndex: number;
-  totalSamples: number;
-  prompt: string;
   userId: string;
   token?: string | null;
 }
 
-const buildFormData = (
-  audioUri: string,
-  extraFields?: Record<string, string | number>
-): FormData => {
+const buildFormData = (audioUri: string): FormData => {
   const formData = new FormData();
+
+  // Determine file type from URI
+  const isWav = audioUri.toLowerCase().endsWith('.wav');
+  const fileName = isWav ? "voice-sample.wav" : "voice-sample.m4a";
+  const mimeType = isWav ? "audio/wav" : "audio/m4a";
 
   formData.append("audio_file", {
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore - React Native FormData types require this shape
     uri: audioUri,
-    name: "voice-sample.m4a",
-    type: "audio/m4a",
+    name: fileName,
+    type: mimeType,
   } as any);
-
-  if (extraFields) {
-    Object.entries(extraFields).forEach(([key, value]) => {
-      formData.append(key, String(value));
-    });
-  }
 
   return formData;
 };
@@ -86,17 +87,11 @@ const handleResponse = async (response: Response, fallbackMessage: string) => {
 export const voiceService = {
   async registerVoiceSample({
     audioUri,
-    sampleIndex,
-    totalSamples,
-    prompt,
     userId,
     token,
   }: VoiceRegistrationPayload): Promise<VoiceResponse> {
-    const formData = buildFormData(audioUri, {
-      sampleIndex,
-      totalSamples,
-      prompt,
-    });
+    // Backend chỉ cần audio_file, không cần sampleIndex, totalSamples, prompt
+    const formData = buildFormData(audioUri);
 
     const response = await fetch(
       `${VOICE_AUTH_CONFIG.BASE_URL}${VOICE_AUTH_CONFIG.REGISTRATION_PATH(
