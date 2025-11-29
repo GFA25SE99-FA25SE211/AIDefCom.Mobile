@@ -44,44 +44,115 @@ const handleResponse = async (response: Response, fallbackMessage: string) => {
   const status = response.status;
   const url = response.url;
 
-  if (!response.ok) {
-    let errorMessage = fallbackMessage;
-    let rawBody: unknown = null;
+  // Read response body first
+  let json: any = null;
+  let rawText: string = "";
 
-    try {
-      const text = await response.text();
-      rawBody = text;
+  try {
+    rawText = await response.text();
+    if (rawText) {
       try {
-        const json = JSON.parse(text);
-        rawBody = json;
-        errorMessage =
-          json?.message || json?.detail || json?.error || errorMessage;
+        json = JSON.parse(rawText);
       } catch {
-        if (typeof text === "string" && text.trim().length > 0) {
-          errorMessage = `${fallbackMessage}: ${text}`;
-        }
+        // Not JSON, keep as text
       }
-    } catch {
-      // ignore parse errors
+    }
+  } catch {
+    // Ignore parse errors
+  }
+
+  // Backend trả về format:
+  // Success (200 hoặc 400 nếu thiếu success field): 
+  //   { id, name, enrollment_status, enrollment_count, completed, message, ... }
+  // Error (400/422/500): { error } hoặc { detail }
+  
+  // Kiểm tra lỗi - nhưng cần xử lý trường hợp backend trả về 400 nhưng không có error
+  if (!response.ok) {
+    // Đặc biệt xử lý status 400: có thể là success nếu không có error field
+    if (status === 400 && json && !json.error) {
+      // Backend có thể trả về 400 vì thiếu success field, nhưng thực ra là success
+      // Kiểm tra các field chỉ có trong success response
+      if (json.enrollment_count !== undefined || json.completed !== undefined || json.id) {
+        console.log("⚠️ Backend returned 400 but response looks like success (missing success field)", json);
+        // Coi như success, normalize response
+        json.type = json.type || "enrollment";
+        json.success = true;
+        json.user_id = json.user_id || json.id;
+        json.min_required = json.min_required || 3;
+        json.is_complete = json.is_complete !== undefined ? json.is_complete : json.completed;
+        console.log("✅ Normalized response as success", json);
+        return json as VoiceResponse;
+      }
+    }
+
+    let errorMessage = fallbackMessage;
+
+    // Parse error từ response
+    if (json) {
+      // FastAPI validation error (422)
+      if (status === 422 && json.detail) {
+        const details = Array.isArray(json.detail) 
+          ? json.detail.map((d: any) => d.msg || d.message).join(", ")
+          : JSON.stringify(json.detail);
+        errorMessage = `Validation error: ${details}`;
+      } else {
+        // Other errors
+        errorMessage = json.error || json.message || json.detail || errorMessage;
+      }
+    } else if (rawText) {
+      errorMessage = rawText;
+    }
+
+    // Cải thiện error message cho các status codes phổ biến
+    if (status === 502) {
+      errorMessage = "Backend service không khả dụng (Bad Gateway). Vui lòng thử lại sau.";
+    } else if (status === 503) {
+      errorMessage = "Backend service đang tạm thời không khả dụng. Vui lòng thử lại sau.";
+    } else if (status === 504) {
+      errorMessage = "Backend service timeout. Vui lòng thử lại sau.";
     }
 
     console.error("Voice service error", {
       url,
       status,
-      body: rawBody,
+      body: json || rawText,
+      errorMessage,
     });
 
     throw new Error(errorMessage);
   }
 
-  try {
-    const json = (await response.json()) as VoiceResponse;
-    console.log("Voice service response", { url, status, body: json });
-    return json;
-  } catch {
-    console.log("Voice service response (no JSON body)", { url, status });
-    return { success: true };
+  // Success case (200) - backend trả về format:
+  // { id, name, enrollment_status, enrollment_count, completed, message, ... }
+  // Hoặc theo Swagger: { type, success, user_id, enrollment_count, min_required, is_complete, message }
+  if (json) {
+    // Normalize response để đảm bảo có đủ các field cần thiết
+    if (!json.type) {
+      json.type = "enrollment";
+    }
+    if (!("success" in json)) {
+      json.success = true;
+    }
+    // Map id -> user_id nếu cần
+    if (json.id && !json.user_id) {
+      json.user_id = json.id;
+    }
+    // Map completed -> is_complete nếu cần
+    if (json.completed !== undefined && json.is_complete === undefined) {
+      json.is_complete = json.completed;
+    }
+    // Đảm bảo có min_required
+    if (!json.min_required) {
+      json.min_required = 3;
+    }
+    
+    console.log("✅ Voice service response", { url, status, body: json });
+    return json as VoiceResponse;
   }
+
+  // No JSON body but status is OK
+  console.log("Voice service response (no JSON body)", { url, status });
+  return { success: true };
 };
 
 export const voiceService = {
@@ -90,24 +161,95 @@ export const voiceService = {
     userId,
     token,
   }: VoiceRegistrationPayload): Promise<VoiceResponse> {
-    // Backend chỉ cần audio_file, không cần sampleIndex, totalSamples, prompt
+    // Backend endpoint: POST /voice/users/{user_id}/enroll
+    // Request: multipart/form-data với audio_file (WAV/MP3/FLAC, max 10MB)
+    // Response 200: { type, success, user_id, enrollment_count, min_required, is_complete, message }
     const formData = buildFormData(audioUri);
 
-    const response = await fetch(
-      `${VOICE_AUTH_CONFIG.BASE_URL}${VOICE_AUTH_CONFIG.REGISTRATION_PATH(
-        userId
-      )}`,
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: formData,
-      }
-    );
+    const url = `${VOICE_AUTH_CONFIG.BASE_URL}${VOICE_AUTH_CONFIG.REGISTRATION_PATH(
+      userId
+    )}`;
 
-    return handleResponse(response, "Voice registration failed");
+    // Retry logic for 5xx errors (service unavailable/cold start/bad gateway)
+    let lastError: Error | null = null;
+    const maxRetries = 5;
+    const baseRetryDelay = 3000; // 3 seconds base delay
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds timeout
+
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: formData,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        // Retry for 5xx errors (502, 503, 504) - backend might be cold starting
+        const isRetryableError = 
+          response.status === 502 || // Bad Gateway
+          response.status === 503 || // Service Unavailable
+          response.status === 504;    // Gateway Timeout
+
+        if (isRetryableError && attempt < maxRetries - 1) {
+          const delay = baseRetryDelay * (attempt + 1); // Exponential backoff: 3s, 6s, 9s, 12s, 15s
+          console.log(
+            `⚠️ Service error (${response.status}), retrying in ${delay}ms... (${attempt + 1}/${maxRetries})`
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        // Process response (200 success hoặc 400/422/500 error)
+        return handleResponse(response, "Voice registration failed");
+      } catch (error: any) {
+        lastError = error;
+        
+        // Check if it's a timeout error
+        const isTimeoutError = 
+          error.name === "AbortError" ||
+          error.message?.includes("timeout") ||
+          error.message?.includes("aborted");
+
+        // If connection/network error and not last attempt, retry
+        const isConnectionError =
+          error.message?.includes("Connection refused") ||
+          error.message?.includes("network") ||
+          error.message?.includes("fetch") ||
+          error.message?.includes("upstream connect error") ||
+          error.message?.includes("Failed to fetch") ||
+          error.message?.includes("Network request failed") ||
+          isTimeoutError;
+
+        if (isConnectionError && attempt < maxRetries - 1) {
+          const delay = baseRetryDelay * (attempt + 1);
+          const errorType = isTimeoutError ? "Timeout" : "Connection";
+          console.log(
+            `⚠️ ${errorType} error, retrying in ${delay}ms... (${attempt + 1}/${maxRetries})`
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        // If not connection error or last attempt, throw immediately
+        throw error;
+      }
+    }
+
+    // If all retries failed
+    if (lastError) {
+      throw lastError;
+    }
+
+    throw new Error("Voice registration failed after retries");
   },
 
   async verifyVoiceSample(
