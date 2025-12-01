@@ -51,6 +51,58 @@ export const VoiceRegistrationScreen = () => {
   const totalSamples = VOICE_AUTH_CONFIG.REQUIRED_SAMPLES;
   const prompts = VOICE_AUTH_CONFIG.PROMPTS;
 
+  // Check enrollment status on mount – if already enrolled, go to VoiceAuth
+  useEffect(() => {
+    const checkEnrollmentStatus = async () => {
+      try {
+        if (!user?.id) {
+          return;
+        }
+
+        setStatusMessage("Đang kiểm tra...");
+
+        // Fast check with timeout (5 seconds max)
+        const status = await Promise.race([
+          voiceService.getEnrollmentStatus(user.id, token),
+          new Promise<any>((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  enrollment_status: "not_enrolled",
+                  enrollment_count: 0,
+                  is_complete: false,
+                }),
+              5000 // 5 seconds max
+            )
+          ),
+        ]);
+
+        const enrollmentCount = status.enrollment_count ?? 0;
+        const minRequired = status.min_required ?? VOICE_AUTH_CONFIG.REQUIRED_SAMPLES;
+        const isComplete =
+          status.is_complete ||
+          status.enrollment_status === "enrolled" ||
+          enrollmentCount >= minRequired;
+
+        if (isComplete) {
+          // User already has enough samples → go to VoiceAuth screen immediately (no delay)
+          navigation.replace("VoiceAuth");
+          return;
+        }
+
+        // Not yet complete → keep on registration screen
+        setStatusMessage("Nhấn nút để bắt đầu ghi âm sample 1");
+      } catch (error: any) {
+        console.error("Failed to check enrollment status:", error);
+        // Fail fast - just continue with registration
+        setStatusMessage("Nhấn nút để bắt đầu ghi âm sample 1");
+      }
+    };
+
+    checkEnrollmentStatus();
+    // Only run once when screen mounts / user changes
+  }, [navigation, token, user?.id]);
+
   // Initialize samples
   useEffect(() => {
     if (samples.length === 0) {
@@ -401,10 +453,11 @@ export const VoiceRegistrationScreen = () => {
         Toast.show({
           type: "success",
           text1: "Đăng ký giọng nói thành công",
-          text2: `Đã đăng ký ${enrollmentCount} mẫu giọng nói`,
+          text2: `Đã đăng ký ${enrollmentCount} mẫu giọng nói. Chuyển sang kiểm tra giọng nói...`,
         });
         setTimeout(() => {
-          navigation.replace("Dashboard");
+          // Sau khi đăng ký đủ 3 mẫu, chuyển đến màn hình check voice
+          navigation.replace("VoiceAuth");
         }, 1500);
       } else {
         // Move to next sample
