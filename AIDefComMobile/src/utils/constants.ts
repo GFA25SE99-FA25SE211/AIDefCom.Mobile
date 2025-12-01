@@ -11,7 +11,7 @@ export const VOICE_AUTH_CONFIG = {
     "https://fastapi-service.happyforest-7c6ec975.southeastasia.azurecontainerapps.io",
   REGISTRATION_PATH: (userId: string) => `/voice/users/${userId}/enroll`,
   AUTH_PATH: (userId: string) => `/voice/users/${userId}/verify`,
-  REQUIRED_SAMPLES: 3,
+  REQUIRED_SAMPLES: 3, // Registration requires 3 samples
   PROMPTS: [
     "Xin chào, tôi là {Dán tên người nói vào}. Hiện tại tôi đang thực hiện đoạn thu âm mẫu đầu tiên để cung cấp dữ liệu cho hệ thống AIDefCom nhằm phân tích và xác thực giọng nói. Tôi sẽ cố gắng duy trì tốc độ nói ổn định và phát âm rõ ràng để hạn chế sai số trong quá trình xử lý. Không gian xung quanh tôi tương đối yên tĩnh, nên hy vọng chất lượng âm thanh sẽ đủ tốt cho hệ thống học và nhận dạng đúng giọng của tôi trong những lần sử dụng tiếp theo.",
     "Đây là đoạn thu âm mẫu thứ hai để hỗ trợ AIDefCom xây dựng mô hình nhận diện giọng nói chính xác hơn. Tôi đang nói ở tốc độ tự nhiên, không quá nhanh, không quá chậm. Mục tiêu của đoạn này là tạo ra dữ liệu có tính ổn định và dễ phân tích. Trong thực tế, giọng nói có thể thay đổi tùy theo ngữ cảnh, cảm xúc hay môi trường, vì vậy bản thu này giúp hệ thống có thêm thông tin để nhận dạng tôi trong nhiều tình huống khác nhau.",
