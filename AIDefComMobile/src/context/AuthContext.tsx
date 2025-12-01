@@ -82,13 +82,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const ensureValidRoles = (tokenData: TokenResponseDto) => {
+    // Allow all roles to access - no restriction
+    // Only validate that roles array exists and is valid
     if (!tokenData.roles || !Array.isArray(tokenData.roles)) {
       throw new Error("Dữ liệu phản hồi không hợp lệ - thiếu roles");
     }
 
-    if (!tokenData.roles.includes(USER_ROLES.STUDENT)) {
-      throw new Error("Tài khoản này không có quyền sinh viên");
+    // Check that user has at least one role
+    if (tokenData.roles.length === 0) {
+      throw new Error("Tài khoản không có quyền truy cập");
     }
+
+    // All roles are allowed - no specific role restriction
   };
 
   const handleAuthError = (error: any) => {
@@ -154,7 +159,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           text1: "Không có quyền truy cập",
           text2:
             roleError?.message ||
-            "Tài khoản này không có quyền sinh viên. Vui lòng dùng tài khoản sinh viên.",
+            "Tài khoản không có quyền truy cập hợp lệ.",
         });
         return false;
       }
@@ -189,7 +194,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           text1: "Không có quyền truy cập",
           text2:
             roleError?.message ||
-            "Tài khoản này không có quyền sinh viên. Vui lòng dùng tài khoản sinh viên.",
+            "Tài khoản không có quyền truy cập hợp lệ.",
         });
         return false;
       }

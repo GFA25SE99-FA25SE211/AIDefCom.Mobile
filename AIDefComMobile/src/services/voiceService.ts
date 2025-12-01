@@ -252,6 +252,21 @@ export const voiceService = {
     throw new Error("Voice registration failed after retries");
   },
 
+  /**
+   * Verify voice sample against enrolled samples
+   * Backend endpoint: POST /voice/users/{user_id}/verify
+   * 
+   * IMPORTANT: This uses the VERIFY API, NOT the enroll API
+   * - Enroll API: POST /voice/users/{user_id}/enroll (used in registerVoiceSample)
+   * - Verify API: POST /voice/users/{user_id}/verify (used here)
+   * 
+   * Request: multipart/form-data với audio_file
+   * Response 200: { type: "verify", success, verified, claimed_id, match, score, message }
+   * 
+   * Requirements:
+   * - User must have at least 3 enrolled samples
+   * - Returns similarity score for verification
+   */
   async verifyVoiceSample(
     audioUri: string,
     userId: string,
@@ -259,17 +274,19 @@ export const voiceService = {
   ) {
     const formData = buildFormData(audioUri);
 
-    const response = await fetch(
-      `${VOICE_AUTH_CONFIG.BASE_URL}${VOICE_AUTH_CONFIG.AUTH_PATH(userId)}`,
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: formData,
-      }
-    );
+    // Use AUTH_PATH (verify endpoint), NOT REGISTRATION_PATH (enroll endpoint)
+    const verifyUrl = `${VOICE_AUTH_CONFIG.BASE_URL}${VOICE_AUTH_CONFIG.AUTH_PATH(userId)}`;
+    
+    console.log("🔐 Verifying voice sample using VERIFY API:", verifyUrl);
+
+    const response = await fetch(verifyUrl, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
 
     return handleResponse(response, "Voice verification failed");
   },

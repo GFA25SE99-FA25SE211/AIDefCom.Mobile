@@ -116,17 +116,20 @@ export const LoginScreen = () => {
     if (success) {
       // After login, user and token are set in context
       // Use a small delay to ensure state is updated, then check enrollment
+      // ALL ROLES must check voice enrollment - no exceptions
       setTimeout(async () => {
         // Get fresh values from context after state update
         const currentUser = user;
         const currentToken = token;
         if (currentUser?.id && currentToken) {
+          // Always check voice enrollment for ALL roles
           await navigateByEnrollmentStatus(currentUser.id, currentToken, navigation);
         } else {
           // Fallback: navigate to registration if user/token not available
+          // This ensures voice registration is required
           navigation.replace("VoiceRegistration");
         }
-      }, 200);
+      }, 300);
     } else {
       Toast.show({
         type: "error",
@@ -148,17 +151,20 @@ export const LoginScreen = () => {
     } else {
       // After login, user and token are set in context
       // Use a small delay to ensure state is updated, then check enrollment
+      // ALL ROLES must check voice enrollment - no exceptions
       setTimeout(async () => {
         // Get fresh values from context after state update
         const currentUser = user;
         const currentToken = token;
         if (currentUser?.id && currentToken) {
+          // Always check voice enrollment for ALL roles
           await navigateByEnrollmentStatus(currentUser.id, currentToken, navigation);
         } else {
           // Fallback: navigate to registration if user/token not available
+          // This ensures voice registration is required
           navigation.replace("VoiceRegistration");
         }
-      }, 200);
+      }, 300);
     }
     setIsGoogleLoading(false);
   };
