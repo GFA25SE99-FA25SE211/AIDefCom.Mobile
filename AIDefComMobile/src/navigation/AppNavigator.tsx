@@ -28,6 +28,12 @@ export const AppNavigator = () => {
     return <Loading />;
   }
 
+  // IMPORTANT: ALL ROLES must go through voice enrollment check
+  // - When user logs in via LoginScreen, navigateByEnrollmentStatus() is called
+  //   which redirects to VoiceRegistration (if not enrolled) or VoiceAuth (if enrolled)
+  // - When app restarts with logged-in user, VoiceRegistrationScreen will check
+  //   enrollment status on mount and redirect to VoiceAuth if already enrolled
+  // - This ensures NO role can bypass voice enrollment requirement
   const initialRoute: keyof RootStackParamList = user
     ? "VoiceRegistration"
     : "Login";
