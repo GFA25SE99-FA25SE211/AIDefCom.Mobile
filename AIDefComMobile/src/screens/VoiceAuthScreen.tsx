@@ -14,6 +14,7 @@ import { Audio } from "expo-av";
 import Toast from "react-native-toast-message";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { LinearGradient } from "expo-linear-gradient";
 import { colors, globalStyles } from "../utils/styles";
 import { VOICE_AUTH_CONFIG } from "../utils/constants";
 import { voiceService } from "../services/voiceService";
@@ -22,7 +23,8 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const RECORDING_DURATION = 15; // 15 seconds per sample
+const RECORDING_DURATION = 15; 
+const SAMPLE_RATE = 16000;
 
 type SampleStatus = "pending" | "recording" | "processing" | "verified" | "failed";
 
@@ -42,12 +44,13 @@ export const VoiceAuthScreen = () => {
   const [currentSampleIndex, setCurrentSampleIndex] = useState(0);
   const [samples, setSamples] = useState<SampleInfo[]>([]);
   const [countdown, setCountdown] = useState(RECORDING_DURATION);
-  const [statusMessage, setStatusMessage] = useState("Nhấn nút để bắt đầu xác thực giọng nói sample 1");
+  const [statusMessage, setStatusMessage] = useState("Tap the microphone and speak naturally");
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const progressAnimation = useRef(new Animated.Value(0)).current;
 
-  const totalSamples = VOICE_AUTH_CONFIG.REQUIRED_SAMPLES;
+  // Verify only needs 1 sample (not 3 like registration)
+  const totalSamples = 1;
   const prompts = VOICE_AUTH_CONFIG.PROMPTS;
 
   useEffect(() => {
@@ -56,7 +59,7 @@ export const VoiceAuthScreen = () => {
       return;
     }
 
-    // Initialize samples
+    // Initialize with only 1 sample for verification
     const initialSamples = Array.from({ length: totalSamples }, (_, i) => ({
       status: "pending" as SampleStatus,
       index: i,
@@ -76,22 +79,12 @@ export const VoiceAuthScreen = () => {
 
   const getPromptForIndex = (index: number) => {
     const raw = prompts[Math.min(index, prompts.length - 1)] || prompts[0] || "";
-    const displayName = user?.name || user?.email?.split("@")[0] || "tôi";
+    const emailName = user?.email && user.email.includes("@") ? user.email.split("@")[0] : undefined;
+    const displayName = user?.fullName || emailName || "tôi";
     return raw.replace("{Dán tên người nói vào}", displayName);
   };
 
-  const currentPrompt = getPromptForIndex(currentSampleIndex);
-  const verifiedCount = samples.filter((s) => s.status === "verified").length;
-  const progress = verifiedCount / totalSamples;
-
-  // Update progress animation
-  useEffect(() => {
-    Animated.timing(progressAnimation, {
-      toValue: progress,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-  }, [progress, progressAnimation]);
+  const currentPrompt = getPromptForIndex(0); // Always use first prompt for verification
 
   const startRecording = async () => {
     try {
@@ -107,16 +100,46 @@ export const VoiceAuthScreen = () => {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false,
       });
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Use same recording options as registration to ensure WAV format compatibility
+      const recordingOptions = {
+        android: {
+          extension: ".wav",
+          outputFormat: Audio.AndroidOutputFormat.DEFAULT,
+          audioEncoder: Audio.AndroidAudioEncoder.DEFAULT,
+          sampleRate: SAMPLE_RATE,
+          numberOfChannels: 1,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: ".wav",
+          outputFormat: Audio.IOSOutputFormat.LINEARPCM,
+          audioQuality: Audio.IOSAudioQuality.HIGH,
+          sampleRate: SAMPLE_RATE,
+          numberOfChannels: 1,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {
+          mimeType: "audio/wav",
+          bitsPerSecond: 128000,
+        },
+      };
+
+      const { recording } = await Audio.Recording.createAsync(recordingOptions);
 
       recordingRef.current = recording;
       setRecording(recording);
       setIsRecording(true);
-      setStatusMessage(`Đang ghi âm sample ${currentSampleIndex + 1} để xác thực...`);
+      setStatusMessage("Recording... tap again to finish");
 
       // Update sample status
       setSamples((prev) => {
@@ -158,7 +181,7 @@ export const VoiceAuthScreen = () => {
     if (!currentRecording) return;
 
     setIsRecording(false);
-    setStatusMessage(`Đang xác thực sample ${currentSampleIndex + 1}...`);
+    setStatusMessage("Processing your voice sample...");
 
     // Update sample status
     setSamples((prev) => {
@@ -195,30 +218,16 @@ export const VoiceAuthScreen = () => {
             score: score,
           };
 
-          // Check if all samples are verified
-          const newVerifiedCount = updated.filter((s) => s.status === "verified").length;
-
-          if (newVerifiedCount >= totalSamples) {
-            // All samples verified
-            setStatusMessage("Xác thực thành công! Đang chuyển hướng...");
-            Toast.show({
-              type: "success",
-              text1: "Voice authenticated",
-              text2: "Welcome back!",
-            });
-            setTimeout(() => {
-              navigation.replace("Dashboard");
-            }, 1500);
-          } else {
-            // Move to next sample
-            setTimeout(() => {
-              const nextIndex = updated.findIndex((s) => s.status === "pending" || s.status === "failed");
-              if (nextIndex >= 0) {
-                setCurrentSampleIndex(nextIndex);
-                setStatusMessage(`Đã xác thực ${newVerifiedCount}/${totalSamples} mẫu. Nhấn nút để xác thực mẫu tiếp theo.`);
-              }
-            }, 100);
-          }
+          // Verification successful - only 1 sample needed
+          setStatusMessage("Voice verified! Redirecting...");
+          Toast.show({
+            type: "success",
+            text1: "Voice authenticated",
+            text2: "Welcome back!",
+          });
+          setTimeout(() => {
+            navigation.replace("Dashboard");
+          }, 1500);
 
           return updated;
         });
@@ -235,14 +244,14 @@ export const VoiceAuthScreen = () => {
           Toast.show({
             type: "error",
             text1: "Chưa đủ mẫu giọng nói",
-            text2: "Vui lòng hoàn tất đăng ký 3 mẫu giọng nói trước",
+            text2: `Vui lòng hoàn tất đăng ký 3 mẫu giọng nói trước`,
           });
           setTimeout(() => {
             navigation.replace("VoiceRegistration");
           }, 1500);
         } else {
           // Verification failed (voice not matched)
-          setStatusMessage(result.message || "Giọng nói không khớp. Vui lòng thử lại.");
+          setStatusMessage(result.message || "Voice not recognized. Please try again.");
           setSamples((prev) => {
             const updated = [...prev];
             updated[currentSampleIndex] = { ...updated[currentSampleIndex], status: "failed" };
@@ -257,7 +266,7 @@ export const VoiceAuthScreen = () => {
       }
     } catch (error: any) {
       console.error("Voice verification failed", error);
-      setStatusMessage(error.message || "Xác thực thất bại. Vui lòng thử lại.");
+      setStatusMessage(error.message || "Voice verification failed. Please try again.");
       setSamples((prev) => {
         const updated = [...prev];
         updated[currentSampleIndex] = { ...updated[currentSampleIndex], status: "failed" };
@@ -298,93 +307,47 @@ export const VoiceAuthScreen = () => {
       };
       return updated;
     });
-    setStatusMessage(`Nhấn nút để xác thực lại sample ${index + 1}`);
+    setStatusMessage("Tap the microphone and speak naturally");
   };
 
   return (
-    <View style={globalStyles.container}>
+    <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Header */}
         <View style={styles.hero}>
           <View style={styles.heroIcon}>
-            <MaterialIcons name="shield" size={36} color="#ffffff" />
+            <LinearGradient
+              colors={["#4f46e5", "#7c3aed"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroIconGradient}
+            >
+              <MaterialIcons name="shield" size={36} color="#ffffff" />
+            </LinearGradient>
           </View>
           <Text style={styles.heroTitle}>Voice Authentication</Text>
           <Text style={styles.heroSubtitle}>
-            Xác thực giọng nói của bạn (cần {totalSamples} mẫu)
+            Speak naturally to authenticate your identity
           </Text>
-        </View>
-
-        {/* Progress Bar */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBarBackground}>
-            <Animated.View
-              style={[
-                styles.progressBarFill,
-                {
-                  width: progressAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ["0%", "100%"],
-                  }),
-                },
-              ]}
-            />
-          </View>
-          <Text style={styles.progressText}>
-            {verifiedCount}/{totalSamples} samples đã xác thực
-          </Text>
-        </View>
-
-        {/* Step Indicator */}
-        <View style={styles.stepIndicator}>
-          {samples.map((sample, index) => (
-            <TouchableOpacity
-              key={index}
-              onPress={() => {
-                if (sample.status === "failed") {
-                  retrySample(index);
-                }
-              }}
-              disabled={sample.status !== "failed"}
-            >
-              <View
-                style={[
-                  styles.stepDot,
-                  index === currentSampleIndex &&
-                    isRecording &&
-                    styles.stepDotActive,
-                  sample.status === "verified" && styles.stepDotVerified,
-                  sample.status === "failed" && styles.stepDotFailed,
-                  sample.status === "processing" && styles.stepDotProcessing,
-                ]}
-              >
-                {sample.status === "failed" && (
-                  <MaterialIcons name="error" size={10} color="#ffffff" />
-                )}
-                {sample.status === "processing" && (
-                  <ActivityIndicator size={8} color="#ffffff" />
-                )}
-                {sample.status === "verified" && (
-                  <MaterialIcons name="check" size={10} color="#ffffff" />
-                )}
-              </View>
-            </TouchableOpacity>
-          ))}
         </View>
 
         {/* Prompt Card */}
-        <View style={styles.promptCard}>
-          <View style={styles.promptHeader}>
-            <MaterialIcons name="volume-up" size={20} color="#10b981" />
-            <Text style={styles.promptHeaderText}>
-              Please read this phrase clearly:
-            </Text>
+        {currentPrompt && (
+          <View style={styles.promptCard}>
+            <View style={styles.promptHeader}>
+              <MaterialIcons name="volume-up" size={20} color="#4f46e5" />
+              <Text style={styles.promptHeaderText}>
+                Please read this phrase clearly:
+              </Text>
+            </View>
+            <Text style={styles.promptText}>"{currentPrompt}"</Text>
           </View>
-          <Text style={styles.promptText}>"{currentPrompt}"</Text>
-        </View>
+        )}
 
+        {/* Main Card */}
         <View style={styles.card}>
           {/* Countdown Timer */}
           {isRecording && (
@@ -402,22 +365,43 @@ export const VoiceAuthScreen = () => {
             ]}
             onPress={handleMicrophonePress}
             activeOpacity={0.85}
-            disabled={samples[currentSampleIndex]?.status === "processing" || (samples[currentSampleIndex]?.status === "verified" && verifiedCount < totalSamples)}
+            disabled={samples[currentSampleIndex]?.status === "processing" || samples[currentSampleIndex]?.status === "verified"}
           >
-            {samples[currentSampleIndex]?.status === "processing" ? (
-              <ActivityIndicator size="large" color="#ffffff" />
-            ) : (
-              <MaterialIcons name="mic" size={48} color="#ffffff" />
-            )}
+            <LinearGradient
+              colors={
+                isRecording
+                  ? ["#f97316", "#ea580c"]
+                  : samples[currentSampleIndex]?.status === "processing"
+                  ? ["#9ca3af", "#6b7280"]
+                  : ["#4f46e5", "#7c3aed"]
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.microphoneButtonGradient}
+            >
+              {samples[currentSampleIndex]?.status === "processing" ? (
+                <ActivityIndicator size="large" color="#ffffff" />
+              ) : (
+                <MaterialIcons name="mic" size={48} color="#ffffff" />
+              )}
+            </LinearGradient>
           </TouchableOpacity>
           <Text style={styles.cardTitle}>Tap the microphone to start</Text>
           <Text style={styles.cardSubtitle}>{statusMessage}</Text>
         </View>
 
+        {/* Status Indicator - Only 1 sample for verification */}
+        {samples[0]?.status === "processing" && (
+          <View style={styles.progressContainer}>
+            <Text style={styles.progressText}>Verifying your voice...</Text>
+          </View>
+        )}
+
+        {/* Tips Card */}
         <View style={styles.tipsCard}>
           <View style={styles.tipsHeader}>
-            <MaterialIcons name="info" size={20} color="#10b981" />
-            <Text style={styles.tipsTitle}>Tips for best results</Text>
+            <MaterialIcons name="info" size={20} color="#4f46e5" />
+            <Text style={styles.tipsTitle}>Tips for best results:</Text>
           </View>
           <View style={styles.tipItem}>
             <Text style={styles.tipBullet}>•</Text>
@@ -433,7 +417,7 @@ export const VoiceAuthScreen = () => {
           </View>
           <View style={styles.tipItem}>
             <Text style={styles.tipBullet}>•</Text>
-            <Text style={styles.tipText}>Read the phrase clearly when prompted</Text>
+            <Text style={styles.tipText}>Say a few words naturally when prompted</Text>
           </View>
         </View>
       </ScrollView>
@@ -442,100 +426,62 @@ export const VoiceAuthScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#f3f4f6", // Light purple-grey background
+  },
+  scrollContent: {
+    paddingBottom: 24,
+  },
   hero: {
     alignItems: "center",
-    marginTop: 40,
-    marginBottom: 24,
+    marginTop: 60,
+    marginBottom: 32,
     paddingHorizontal: 20,
   },
   heroIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 24,
-    backgroundColor: "#10b981",
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  heroIconGradient: {
+    width: "100%",
+    height: "100%",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
   },
   heroTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "700",
-    color: colors.text,
+    color: "#4f46e5", // Blue
     marginBottom: 8,
   },
   heroSubtitle: {
     fontSize: 16,
-    color: colors.textSecondary,
+    color: "#6b7280", // Dark grey
     textAlign: "center",
-  },
-  progressContainer: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-  },
-  progressBarBackground: {
-    height: 8,
-    backgroundColor: "#e5e7eb",
-    borderRadius: 4,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  progressBarFill: {
-    height: "100%",
-    backgroundColor: "#10b981",
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-  stepIndicator: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 24,
-    paddingHorizontal: 16,
-  },
-  stepDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#d1d5db",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepDotActive: {
-    backgroundColor: "#3b82f6",
-  },
-  stepDotVerified: {
-    backgroundColor: "#10b981",
-  },
-  stepDotFailed: {
-    backgroundColor: "#ef4444",
-  },
-  stepDotProcessing: {
-    backgroundColor: "#f59e0b",
   },
   promptCard: {
-    backgroundColor: "#d1fae5",
-    marginHorizontal: 16,
+    backgroundColor: "#eef2ff", // Light purple
+    marginHorizontal: 20,
     borderRadius: 16,
     padding: 16,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: "#a7f3d0",
+    borderColor: "#c7d2fe",
   },
   promptHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 12,
     gap: 8,
   },
   promptHeaderText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#065f46",
+    color: "#4f46e5",
   },
   promptText: {
     fontSize: 16,
@@ -544,7 +490,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.surface,
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     borderRadius: 24,
     paddingVertical: 40,
     paddingHorizontal: 24,
@@ -562,22 +508,26 @@ const styles = StyleSheet.create({
   countdownText: {
     fontSize: 48,
     fontWeight: "700",
-    color: "#3b82f6",
+    color: "#4f46e5",
   },
   microphoneButton: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: "#10b981",
+    marginBottom: 24,
+    overflow: "hidden",
+  },
+  microphoneButtonGradient: {
+    width: "100%",
+    height: "100%",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
   },
   microphoneButtonActive: {
-    backgroundColor: "#f97316",
+    // Active state handled by gradient colors
   },
   microphoneButtonProcessing: {
-    backgroundColor: "#9ca3af",
+    // Processing state handled by gradient colors
   },
   cardTitle: {
     fontSize: 18,
@@ -590,9 +540,45 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
   },
+  progressContainer: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    alignItems: "center",
+  },
+  progressText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 12,
+  },
+  stepIndicator: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  stepDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#d1d5db",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepDotActive: {
+    backgroundColor: "#4f46e5",
+  },
+  stepDotVerified: {
+    backgroundColor: "#10b981",
+  },
+  stepDotFailed: {
+    backgroundColor: "#ef4444",
+  },
+  stepDotProcessing: {
+    backgroundColor: "#f59e0b",
+  },
   tipsCard: {
-    backgroundColor: "#d1fae5",
-    marginHorizontal: 16,
+    backgroundColor: colors.surface,
+    marginHorizontal: 20,
     borderRadius: 16,
     padding: 20,
   },
@@ -605,7 +591,7 @@ const styles = StyleSheet.create({
   tipsTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#065f46",
+    color: "#4f46e5",
   },
   tipItem: {
     flexDirection: "row",
@@ -613,12 +599,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   tipBullet: {
-    color: "#065f46",
+    color: "#4f46e5",
     fontSize: 18,
-    marginRight: 6,
+    marginRight: 8,
   },
   tipText: {
     color: colors.textSecondary,
     flex: 1,
+    fontSize: 14,
   },
 });

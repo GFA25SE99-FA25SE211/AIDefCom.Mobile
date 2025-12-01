@@ -69,19 +69,42 @@ const handleResponse = async (response: Response, fallbackMessage: string) => {
   // Kiểm tra lỗi - nhưng cần xử lý trường hợp backend trả về 400 nhưng không có error
   if (!response.ok) {
     // Đặc biệt xử lý status 400: có thể là success nếu không có error field
-    if (status === 400 && json && !json.error) {
-      // Backend có thể trả về 400 vì thiếu success field, nhưng thực ra là success
-      // Kiểm tra các field chỉ có trong success response
-      if (json.enrollment_count !== undefined || json.completed !== undefined || json.id) {
-        console.log("⚠️ Backend returned 400 but response looks like success (missing success field)", json);
-        // Coi như success, normalize response
-        json.type = json.type || "enrollment";
-        json.success = true;
-        json.user_id = json.user_id || json.id;
-        json.min_required = json.min_required || 3;
-        json.is_complete = json.is_complete !== undefined ? json.is_complete : json.completed;
-        console.log("✅ Normalized response as success", json);
-        return json as VoiceResponse;
+    if (status === 400 && json) {
+      // Case 1: Backend trả về 400 nhưng không có error field (thiếu success field)
+      if (!json.error) {
+        // Kiểm tra các field chỉ có trong success response
+        if (json.enrollment_count !== undefined || json.completed !== undefined || json.id) {
+          console.log("⚠️ Backend returned 400 but response looks like success (missing success field)", json);
+          // Coi như success, normalize response
+          json.type = json.type || "enrollment";
+          json.success = true;
+          json.user_id = json.user_id || json.id;
+          json.min_required = json.min_required || 3;
+          json.is_complete = json.is_complete !== undefined ? json.is_complete : json.completed;
+          console.log("✅ Normalized response as success", json);
+          return json as VoiceResponse;
+        }
+      }
+      
+      // Case 2: "Maximum enrollment limit reached" - user đã đủ 3 mẫu, coi như success
+      const errorMsg = json.error || json.message || "";
+      if (
+        errorMsg.includes("Maximum enrollment limit") ||
+        errorMsg.includes("Đã đủ 3 samples") ||
+        (json.enrollment_count >= 3 && json.completed === true)
+      ) {
+        console.log("✅ User already has 3 samples - treating as success", json);
+        // Normalize response như success
+        return {
+          type: "enrollment",
+          success: true,
+          user_id: json.user_id || json.id,
+          enrollment_count: json.enrollment_count || 3,
+          min_required: json.min_required || 3,
+          is_complete: true,
+          completed: true,
+          message: json.message || "Đã đủ 3 mẫu giọng nói",
+        } as VoiceResponse;
       }
     }
 

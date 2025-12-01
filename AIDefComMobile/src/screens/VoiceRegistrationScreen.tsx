@@ -456,7 +456,7 @@ export const VoiceRegistrationScreen = () => {
           text2: `Đã đăng ký ${enrollmentCount} mẫu giọng nói. Chuyển đến trang chủ...`,
         });
         setTimeout(() => {
-          // Sau khi đăng ký đủ 3 mẫu, chuyển trực tiếp đến Dashboard
+          // Sau khi đăng ký đủ 3 mẫu, chuyển thẳng đến Dashboard (không cần check voice)
           navigation.replace("Dashboard");
         }, 1500);
       } else {
@@ -475,6 +475,30 @@ export const VoiceRegistrationScreen = () => {
       resetRecording();
     } catch (error: any) {
       console.error("❌ Failed to stop/upload recording:", error);
+      
+      // Check if error is "Maximum enrollment limit reached" - user already has 3 samples
+      const errorMessage = error.message || "";
+      const isMaxEnrollmentReached = 
+        errorMessage.includes("Maximum enrollment limit") ||
+        errorMessage.includes("Đã đủ 3 samples") ||
+        errorMessage.includes("Đã đủ 3 mẫu");
+      
+      if (isMaxEnrollmentReached) {
+        // User already has 3 samples - redirect to VoiceAuth (verify)
+        console.log("✅ User already has 3 samples - redirecting to VoiceAuth");
+        setStatusMessage("Đã đủ 3 mẫu giọng nói. Chuyển đến xác thực...");
+        Toast.show({
+          type: "info",
+          text1: "Đã đủ mẫu giọng nói",
+          text2: "Chuyển đến trang xác thực giọng nói",
+        });
+        setTimeout(() => {
+          navigation.replace("VoiceAuth");
+        }, 1500);
+        resetRecording();
+        return;
+      }
+
       setStatusMessage(error.message || "Tải lên thất bại. Vui lòng thử lại.");
 
       // Mark sample as failed
