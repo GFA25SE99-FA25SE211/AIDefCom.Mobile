@@ -273,5 +273,72 @@ export const voiceService = {
 
     return handleResponse(response, "Voice verification failed");
   },
+
+  async getEnrollmentStatus(
+    userId: string,
+    token?: string | null
+  ): Promise<VoiceResponse> {
+    const url = `${VOICE_AUTH_CONFIG.BASE_URL}/voice/users/${userId}/enrollment-status`;
+
+    // Use AbortController for timeout (5 seconds max)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      // If AIServer returns 404 (no profile), treat as not enrolled
+      if (!response.ok && response.status === 404) {
+        return {
+          user_id: userId,
+          enrollment_status: "not_enrolled",
+          enrollment_count: 0,
+          min_required: 3,
+          is_complete: false,
+          success: true,
+          message: "User not enrolled",
+        };
+      }
+
+      // For successful response, parse JSON directly (faster than handleResponse)
+      if (response.ok) {
+        const json = await response.json();
+        return {
+          ...json,
+          success: true,
+        } as VoiceResponse;
+      }
+
+      // For other errors, use generic handler
+      return handleResponse(response, "Failed to get enrollment status");
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      
+      // If timeout or network error, return not enrolled (fail fast)
+      if (error.name === "AbortError" || error.message?.includes("timeout")) {
+        console.warn("Enrollment status check timeout, defaulting to not enrolled");
+        return {
+          user_id: userId,
+          enrollment_status: "not_enrolled",
+          enrollment_count: 0,
+          min_required: 3,
+          is_complete: false,
+          success: true,
+          message: "Check timeout - assuming not enrolled",
+        };
+      }
+      
+      throw error;
+    }
+  },
 };
 

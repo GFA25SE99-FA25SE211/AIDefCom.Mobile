@@ -24,6 +24,7 @@ import { colors, globalStyles } from "../utils/styles";
 import { Loading } from "../components/Loading";
 import { googleOAuthConfig, hasGoogleOAuthConfig } from "../config/google";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import { navigateByEnrollmentStatus } from "../utils/voiceNavigation";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -37,7 +38,7 @@ export const LoginScreen = () => {
   const [rememberMe, setRememberMe] = useState<boolean>(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const { login, loginWithGoogle, isLoading } = useAuth();
+  const { login, loginWithGoogle, isLoading, user, token } = useAuth();
 
   const platformFallbackClientId =
     googleOAuthConfig.webClientId ||
@@ -113,7 +114,19 @@ export const LoginScreen = () => {
 
     const success = await login(email.trim(), password);
     if (success) {
-      navigation.replace("VoiceRegistration");
+      // After login, user and token are set in context
+      // Use a small delay to ensure state is updated, then check enrollment
+      setTimeout(async () => {
+        // Get fresh values from context after state update
+        const currentUser = user;
+        const currentToken = token;
+        if (currentUser?.id && currentToken) {
+          await navigateByEnrollmentStatus(currentUser.id, currentToken, navigation);
+        } else {
+          // Fallback: navigate to registration if user/token not available
+          navigation.replace("VoiceRegistration");
+        }
+      }, 200);
     } else {
       Toast.show({
         type: "error",
@@ -123,9 +136,9 @@ export const LoginScreen = () => {
     }
   };
 
-  const handleGoogleLogin = async (token: string) => {
+  const handleGoogleLogin = async (googleToken: string) => {
     setIsGoogleLoading(true);
-    const success = await loginWithGoogle(token);
+    const success = await loginWithGoogle(googleToken);
     if (!success) {
       Toast.show({
         type: "error",
@@ -133,7 +146,19 @@ export const LoginScreen = () => {
         text2: "Đăng nhập Google thất bại",
       });
     } else {
-      navigation.replace("VoiceRegistration");
+      // After login, user and token are set in context
+      // Use a small delay to ensure state is updated, then check enrollment
+      setTimeout(async () => {
+        // Get fresh values from context after state update
+        const currentUser = user;
+        const currentToken = token;
+        if (currentUser?.id && currentToken) {
+          await navigateByEnrollmentStatus(currentUser.id, currentToken, navigation);
+        } else {
+          // Fallback: navigate to registration if user/token not available
+          navigation.replace("VoiceRegistration");
+        }
+      }, 200);
     }
     setIsGoogleLoading(false);
   };

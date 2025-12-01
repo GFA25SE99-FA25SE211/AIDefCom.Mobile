@@ -263,6 +263,12 @@ export const defenseSessionService = {
     );
     return response.data.data || [];
   },
+  async getByLecturerId(lecturerId: string): Promise<DefenseSession[]> {
+    const response = await apiClient.get<ApiResponse<DefenseSession[]>>(
+      `/defense-sessions/lecturer/${lecturerId}`
+    );
+    return response.data.data || [];
+  },
 };
 
 export default apiClient;

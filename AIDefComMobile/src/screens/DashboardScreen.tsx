@@ -39,8 +39,15 @@ export const DashboardScreen = () => {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await defenseSessionService.getAll();
-        setSessions(data);
+        
+        // Use getByLecturerId if user ID is available, otherwise fallback to getAll
+        if (user?.id) {
+          const data = await defenseSessionService.getByLecturerId(user.id);
+          setSessions(data);
+        } else {
+          const data = await defenseSessionService.getAll();
+          setSessions(data);
+        }
       } catch (err: any) {
         console.error("Failed to load defense sessions", err);
         setError("Không tải được danh sách phiên bảo vệ");
@@ -50,7 +57,7 @@ export const DashboardScreen = () => {
     };
 
     loadSessions();
-  }, []);
+  }, [user?.id]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -93,24 +100,6 @@ export const DashboardScreen = () => {
         </View>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <MaterialIcons name="logout" size={24} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Quick Actions */}
-      <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation.navigate("AudioTest")}
-        >
-          <MaterialIcons name="graphic-eq" size={24} color="white" />
-          <Text style={styles.actionButtonText}>Test Audio Level</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation.navigate("AudioRecordingTest")}
-        >
-          <MaterialIcons name="mic" size={24} color="white" />
-          <Text style={styles.actionButtonText}>Test Recording</Text>
         </TouchableOpacity>
       </View>
 
@@ -371,32 +360,5 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
     color: colors.textSecondary,
-  },
-  quickActions: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  actionButton: {
-    backgroundColor: colors.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  actionButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
   },
 });
