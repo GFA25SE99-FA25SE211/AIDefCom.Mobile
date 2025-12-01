@@ -280,65 +280,146 @@ export const voiceService = {
   ): Promise<VoiceResponse> {
     const url = `${VOICE_AUTH_CONFIG.BASE_URL}/voice/users/${userId}/enrollment-status`;
 
-    // Use AbortController for timeout (5 seconds max)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    console.log("🔍 Checking enrollment status for user:", userId);
+    console.log("📡 API URL:", url);
 
-    try {
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        signal: controller.signal,
-      });
+    const startTime = Date.now();
+    const TIMEOUT_MS = 10000; // 10 seconds per attempt (reduced for faster fail)
+    const MAX_ATTEMPTS = 3;
 
-      clearTimeout(timeoutId);
+    // Retry logic for network issues (max 3 attempts)
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      // Create new AbortController for each attempt
+      const controller = new AbortController();
+      let timeoutId: NodeJS.Timeout | null = null;
 
-      // If AIServer returns 404 (no profile), treat as not enrolled
-      if (!response.ok && response.status === 404) {
-        return {
-          user_id: userId,
-          enrollment_status: "not_enrolled",
-          enrollment_count: 0,
-          min_required: 3,
-          is_complete: false,
-          success: true,
-          message: "User not enrolled",
-        };
+      try {
+        if (attempt > 0) {
+          const backoffDelay = 500 * attempt; // 500ms, 1000ms, 1500ms
+          console.log(`🔄 Retry attempt ${attempt + 1}/${MAX_ATTEMPTS} after ${backoffDelay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+        }
+
+        // Set timeout for this attempt
+        timeoutId = setTimeout(() => {
+          console.warn(`⏰ Attempt ${attempt + 1} timeout after ${TIMEOUT_MS}ms`);
+          controller.abort();
+        }, TIMEOUT_MS);
+
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        });
+
+        // Clear timeout on success
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+
+        const duration = Date.now() - startTime;
+        console.log(`✅ Enrollment status response received in ${duration}ms (attempt ${attempt + 1}), status: ${response.status}`);
+
+        // If AIServer returns 404 (no profile), treat as not enrolled
+        if (!response.ok && response.status === 404) {
+          console.log("ℹ️ User not found (404) - treating as not enrolled");
+          return {
+            user_id: userId,
+            enrollment_status: "not_enrolled",
+            enrollment_count: 0,
+            min_required: 3,
+            is_complete: false,
+            success: true,
+            message: "User not enrolled",
+          };
+        }
+
+        // For successful response, parse JSON directly (faster than handleResponse)
+        if (response.ok) {
+          const json = await response.json();
+          console.log("📊 Enrollment status:", {
+            enrollment_count: json.enrollment_count,
+            enrollment_status: json.enrollment_status,
+            is_complete: json.is_complete,
+          });
+          return {
+            ...json,
+            success: true,
+          } as VoiceResponse;
+        }
+
+        // For other errors, log and use generic handler
+        console.error("❌ Enrollment status check failed:", {
+          status: response.status,
+          statusText: response.statusText,
+        });
+        return handleResponse(response, "Failed to get enrollment status");
+      } catch (fetchError: any) {
+        // Clear timeout on error
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+
+        lastError = fetchError;
+        
+        // Check if it's an abort/timeout error
+        const isAbortError =
+          fetchError.name === "AbortError" ||
+          fetchError.name === "DOMException" ||
+          fetchError.message?.includes("aborted") ||
+          fetchError.message?.includes("timeout");
+        
+        // Check if it's a network error
+        const isNetworkError =
+          fetchError.message?.includes("network") ||
+          fetchError.message?.includes("fetch") ||
+          fetchError.message?.includes("Failed to fetch") ||
+          fetchError.message?.includes("Network request failed");
+        
+        if (isAbortError) {
+          console.warn(`⏰ Attempt ${attempt + 1} timed out or aborted`);
+          // If not last attempt, continue to retry
+          if (attempt < MAX_ATTEMPTS - 1) {
+            continue;
+          }
+          // Last attempt failed, break to return default
+          break;
+        }
+        
+        if (isNetworkError && attempt < MAX_ATTEMPTS - 1) {
+          console.warn(`⚠️ Network error on attempt ${attempt + 1}, will retry...`);
+          continue;
+        }
+        
+        // If not network/abort error or last attempt, throw
+        throw fetchError;
       }
-
-      // For successful response, parse JSON directly (faster than handleResponse)
-      if (response.ok) {
-        const json = await response.json();
-        return {
-          ...json,
-          success: true,
-        } as VoiceResponse;
-      }
-
-      // For other errors, use generic handler
-      return handleResponse(response, "Failed to get enrollment status");
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      
-      // If timeout or network error, return not enrolled (fail fast)
-      if (error.name === "AbortError" || error.message?.includes("timeout")) {
-        console.warn("Enrollment status check timeout, defaulting to not enrolled");
-        return {
-          user_id: userId,
-          enrollment_status: "not_enrolled",
-          enrollment_count: 0,
-          min_required: 3,
-          is_complete: false,
-          success: true,
-          message: "Check timeout - assuming not enrolled",
-        };
-      }
-      
-      throw error;
     }
+    
+    // If all retries failed (timeout/network), return not enrolled (fail fast)
+    const totalDuration = Date.now() - startTime;
+    console.warn(`⚠️ All ${MAX_ATTEMPTS} attempts failed after ${totalDuration}ms - defaulting to not enrolled`);
+    console.error("❌ Last error:", {
+      name: lastError?.name,
+      message: lastError?.message,
+    });
+    
+    return {
+      user_id: userId,
+      enrollment_status: "not_enrolled",
+      enrollment_count: 0,
+      min_required: 3,
+      is_complete: false,
+      success: true,
+      message: "Network/timeout error - assuming not enrolled",
+    };
   },
 };
 

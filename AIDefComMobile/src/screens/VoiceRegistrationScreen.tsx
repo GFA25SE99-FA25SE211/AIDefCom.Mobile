@@ -453,11 +453,11 @@ export const VoiceRegistrationScreen = () => {
         Toast.show({
           type: "success",
           text1: "Đăng ký giọng nói thành công",
-          text2: `Đã đăng ký ${enrollmentCount} mẫu giọng nói. Chuyển sang kiểm tra giọng nói...`,
+          text2: `Đã đăng ký ${enrollmentCount} mẫu giọng nói. Chuyển đến trang chủ...`,
         });
         setTimeout(() => {
-          // Sau khi đăng ký đủ 3 mẫu, chuyển đến màn hình check voice
-          navigation.replace("VoiceAuth");
+          // Sau khi đăng ký đủ 3 mẫu, chuyển trực tiếp đến Dashboard
+          navigation.replace("Dashboard");
         }, 1500);
       } else {
         // Move to next sample

@@ -1,4 +1,4 @@
-import { voiceService } from "../services/voiceService";
+import { voiceService, type VoiceResponse } from "../services/voiceService";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 
@@ -15,25 +15,16 @@ export async function navigateByEnrollmentStatus(
   navigation: NavigationProp
 ) {
   try {
-    // Fast check with timeout - if takes too long, default to registration
-    const status = await Promise.race([
-      voiceService.getEnrollmentStatus(userId, token),
-      new Promise<VoiceResponse>((resolve) =>
-        setTimeout(
-          () =>
-            resolve({
-              user_id: userId,
-              enrollment_status: "not_enrolled",
-              enrollment_count: 0,
-              min_required: 3,
-              is_complete: false,
-              success: true,
-              message: "Check timeout",
-            }),
-          6000 // 6 seconds max total wait
-        )
-      ),
-    ]);
+    console.log("🚀 Starting enrollment status check for navigation...");
+    
+    // Call API directly (it already has timeout handling)
+    const status = await voiceService.getEnrollmentStatus(userId, token);
+
+    console.log("📋 Enrollment status result:", {
+      enrollment_count: status.enrollment_count,
+      enrollment_status: status.enrollment_status,
+      is_complete: status.is_complete,
+    });
 
     const enrollmentCount = status.enrollment_count ?? 0;
     const minRequired = status.min_required ?? 3;
@@ -43,15 +34,21 @@ export async function navigateByEnrollmentStatus(
       enrollmentCount >= minRequired;
 
     if (isComplete) {
+      console.log("✅ User is enrolled - navigating to VoiceAuth");
       // User already enrolled → go to voice check/verification
       navigation.replace("VoiceAuth");
     } else {
+      console.log("📝 User not enrolled - navigating to VoiceRegistration");
       // User not enrolled → go to registration
       navigation.replace("VoiceRegistration");
     }
   } catch (error: any) {
-    console.error("Error checking enrollment status:", error);
+    console.error("❌ Error in navigateByEnrollmentStatus:", {
+      error: error.message,
+      stack: error.stack,
+    });
     // On error, default to registration screen (fail fast)
+    console.log("⚠️ Defaulting to VoiceRegistration due to error");
     navigation.replace("VoiceRegistration");
   }
 }
