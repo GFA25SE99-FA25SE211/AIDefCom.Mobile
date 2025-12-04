@@ -9,6 +9,8 @@ import { DashboardScreen } from "../screens/DashboardScreen";
 import { AudioTestScreen } from "../screens/AudioTestScreen";
 import { AudioRecordingTestScreen } from "../screens/AudioRecordingTestScreen";
 import { Loading } from "../components/Loading";
+import { DefenseSessionDetailScreen } from "../screens/DefenseSessionDetailScreen";
+import { DefenseSession } from "../types/defense";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -17,6 +19,7 @@ export type RootStackParamList = {
   Dashboard: undefined;
   AudioTest: undefined;
   AudioRecordingTest: undefined;
+  DefenseSessionDetail: { session: DefenseSession };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -51,6 +54,10 @@ export const AppNavigator = () => {
         />
         <Stack.Screen name="VoiceAuth" component={VoiceAuthScreen} />
         <Stack.Screen name="Dashboard" component={DashboardScreen} />
+        <Stack.Screen
+          name="DefenseSessionDetail"
+          component={DefenseSessionDetailScreen}
+        />
         <Stack.Screen name="AudioTest" component={AudioTestScreen} />
         <Stack.Screen
           name="AudioRecordingTest"
