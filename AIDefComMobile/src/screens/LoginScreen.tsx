@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { MaterialIcons, AntDesign } from "@expo/vector-icons";
@@ -232,6 +233,19 @@ export const LoginScreen = () => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* Logo Header */}
+        <View style={styles.logoContainer}>
+          <Image
+            source={require("../../assets/logo.png")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.logoTitle}>AIDefCom</Text>
+          <Text style={styles.logoSubtitle}>
+            AI Defense Committee Management System
+          </Text>
+        </View>
+
         <View style={styles.card}>
           <Text style={styles.title}>Sign In</Text>
           <Text style={styles.subtitle}>
@@ -382,6 +396,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 20,
     paddingVertical: 40,
+  },
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 32,
+  },
+  logo: {
+    width: 96,
+    height: 96,
+    marginBottom: 16,
+  },
+  logoTitle: {
+    fontSize: 28,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: 8,
+  },
+  logoSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: "center",
   },
   card: {
     backgroundColor: colors.surface,
