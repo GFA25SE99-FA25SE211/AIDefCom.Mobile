@@ -436,7 +436,7 @@ export const VoiceRegistrationScreen = () => {
         message: response.message,
       });
 
-      // Update sample status
+      let nextSampleIndex = -1;
       setSamples((prev) => {
         const updated = [...prev];
         updated[currentSampleIndex] = {
@@ -444,35 +444,38 @@ export const VoiceRegistrationScreen = () => {
           status: "completed",
           uri,
         };
+        nextSampleIndex = updated.findIndex(
+          (s) => s.status === "pending" || s.status === "failed"
+        );
         return updated;
       });
 
-      // Check if all samples completed
+      setStatusMessage(`Sample ${currentSampleIndex + 1} đã lưu thành công.`);
+      resetRecording();
+      Toast.show({
+        type: "success",
+        position: "top",
+        text1: `Sample ${currentSampleIndex + 1} đã lưu`,
+        text2: `Đã ghi ${enrollmentCount}/${totalSamples} mẫu`,
+      });
+
       if (isComplete && enrollmentCount >= minRequired) {
         setStatusMessage("Hoàn tất đăng ký giọng nói!");
         Toast.show({
           type: "success",
+          position: "top",
           text1: "Đăng ký giọng nói thành công",
           text2: `Đã đăng ký ${enrollmentCount} mẫu giọng nói. Chuyển đến trang chủ...`,
         });
         setTimeout(() => {
-          // Sau khi đăng ký đủ 3 mẫu, chuyển thẳng đến Dashboard (không cần check voice)
           navigation.replace("Dashboard");
-        }, 1500);
-      } else {
-        // Move to next sample
-        const nextIndex = samples.findIndex(
-          (s) => s.status === "pending" || s.status === "failed"
+        }, 1200);
+      } else if (nextSampleIndex >= 0) {
+        setCurrentSampleIndex(nextSampleIndex);
+        setStatusMessage(
+          `Đã ghi ${enrollmentCount}/${totalSamples} mẫu. Nhấn nút để ghi mẫu tiếp theo.`
         );
-        if (nextIndex >= 0) {
-          setCurrentSampleIndex(nextIndex);
-          setStatusMessage(
-            `Đã ghi ${enrollmentCount}/${totalSamples} mẫu. Nhấn nút để ghi mẫu tiếp theo.`
-          );
-        }
       }
-
-      resetRecording();
     } catch (error: any) {
       console.error("❌ Failed to stop/upload recording:", error);
       
@@ -489,6 +492,7 @@ export const VoiceRegistrationScreen = () => {
         setStatusMessage("Đã đủ 3 mẫu giọng nói. Chuyển đến xác thực...");
         Toast.show({
           type: "info",
+          position: "top",
           text1: "Đã đủ mẫu giọng nói",
           text2: "Chuyển đến trang xác thực giọng nói",
         });
@@ -513,6 +517,7 @@ export const VoiceRegistrationScreen = () => {
 
       Toast.show({
         type: "error",
+        position: "top",
         text1: "Đăng ký thất bại",
         text2: error.message || "Vui lòng thử lại",
       });
@@ -826,6 +831,7 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 8,
     marginBottom: 24,
+    position: "relative",
   },
   countdownContainer: {
     marginBottom: 16,

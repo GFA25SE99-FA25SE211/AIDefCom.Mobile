@@ -39,11 +39,22 @@ export const DashboardScreen = () => {
       try {
         setIsLoading(true);
         setError(null);
-        
-        // Use getByLecturerId if user ID is available, otherwise fallback to getAll
-        if (user?.id) {
-          const data = await defenseSessionService.getByLecturerId(user.id);
-          setSessions(data);
+
+        // Phân biệt role để dùng đúng API:
+        // - Student: /defense-sessions/student/{userId}
+        // - Lecturer: /defense-sessions/lecturer/{userId}
+        // - Khác: getAll()
+        if (user?.id && Array.isArray(user.roles) && user.roles.length > 0) {
+          if (user.roles.includes("Student")) {
+            const data = await defenseSessionService.getByStudentId(user.id);
+            setSessions(data);
+          } else if (user.roles.includes("Lecturer")) {
+            const data = await defenseSessionService.getByLecturerId(user.id);
+            setSessions(data);
+          } else {
+            const data = await defenseSessionService.getAll();
+            setSessions(data);
+          }
         } else {
           const data = await defenseSessionService.getAll();
           setSessions(data);
@@ -57,7 +68,7 @@ export const DashboardScreen = () => {
     };
 
     loadSessions();
-  }, [user?.id]);
+  }, [user?.id, user?.roles]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -121,7 +132,14 @@ export const DashboardScreen = () => {
           </Text>
         ) : (
           sessions.map((session) => (
-            <View key={session.id} style={styles.sessionCard}>
+            <TouchableOpacity
+              key={session.id}
+              style={styles.sessionCard}
+              activeOpacity={0.8}
+              onPress={() =>
+                navigation.navigate("DefenseSessionDetail", { session })
+              }
+            >
               <View style={styles.sessionHeader}>
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
@@ -186,7 +204,7 @@ export const DashboardScreen = () => {
                   <Text style={styles.metaText}>{session.location}</Text>
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>

@@ -2,7 +2,7 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LoginDto, ApiResponse, TokenResponseDto } from "../types/auth";
 import { API_CONFIG, STORAGE_KEYS } from "../utils/constants";
-import { DefenseSession } from "../types/defense";
+import { DefenseSession, DefenseSessionUser, Group } from "../types/defense";
 
 const apiClient = axios.create({
   baseURL: API_CONFIG.BASE_URL,
@@ -190,10 +190,11 @@ export const authService = {
   },
 
   async loginWithGoogle(googleToken: string): Promise<TokenResponseDto> {
+    // Backend expects GoogleUserLoginDTO with field "Token" (capital T)
     const response = await apiClient.post<ApiResponse<any>>(
       "/auth/login/google",
       {
-        token: googleToken,
+        Token: googleToken, // Match backend DTO field name (GoogleUserLoginDTO.Token)
       }
     );
     console.log(
@@ -201,7 +202,20 @@ export const authService = {
       JSON.stringify(response.data, null, 2)
     );
 
-    let tokenData = buildTokenData(response.data.data, "");
+    // Handle case where new user gets temporary password
+    const responseData = response.data.data;
+    let tokenData: TokenResponseDto;
+
+    if (responseData?.temporaryPassword) {
+      // New user - backend returns temporaryPassword and tokenData
+      console.log("New Google user - temporary password provided");
+      console.log("Temporary password:", responseData.temporaryPassword);
+      // Use tokenData from response
+      tokenData = buildTokenData(responseData.tokenData, "");
+    } else {
+      // Existing user - responseData is the tokenData directly
+      tokenData = buildTokenData(responseData, "");
+    }
 
     // Fetch full user profile after Google login as well
     try {
@@ -266,6 +280,39 @@ export const defenseSessionService = {
   async getByLecturerId(lecturerId: string): Promise<DefenseSession[]> {
     const response = await apiClient.get<ApiResponse<DefenseSession[]>>(
       `/defense-sessions/lecturer/${lecturerId}`
+    );
+    return response.data.data || [];
+  },
+  async getByStudentId(studentId: string): Promise<DefenseSession[]> {
+    const response = await apiClient.get<ApiResponse<DefenseSession[]>>(
+      `/defense-sessions/student/${studentId}`
+    );
+    return response.data.data || [];
+  },
+  async getUsersBySessionId(
+    defenseSessionId: number
+  ): Promise<DefenseSessionUser[]> {
+    const response = await apiClient.get<
+      ApiResponse<DefenseSessionUser[] | any[]>
+    >(`/defense-sessions/${defenseSessionId}/users`);
+    // API trả về IEnumerable<object> nên cast về DefenseSessionUser
+    return (response.data.data as DefenseSessionUser[]) || [];
+  },
+};
+
+export const groupService = {
+  async getById(id: string): Promise<Group> {
+    const response = await apiClient.get<ApiResponse<Group>>(
+      `/groups/${encodeURIComponent(id)}`
+    );
+    return response.data.data;
+  },
+};
+
+export const studentService = {
+  async getByGroupId(groupId: string): Promise<any[]> {
+    const response = await apiClient.get<ApiResponse<any[]>>(
+      `/students/group/${encodeURIComponent(groupId)}`
     );
     return response.data.data || [];
   },

@@ -127,7 +127,7 @@ export const LoginScreen = () => {
         } else {
           // Fallback: navigate to registration if user/token not available
           // This ensures voice registration is required
-          navigation.replace("VoiceRegistration");
+      navigation.replace("VoiceRegistration");
         }
       }, 300);
     } else {
@@ -162,7 +162,7 @@ export const LoginScreen = () => {
         } else {
           // Fallback: navigate to registration if user/token not available
           // This ensures voice registration is required
-          navigation.replace("VoiceRegistration");
+      navigation.replace("VoiceRegistration");
         }
       }, 300);
     }
@@ -179,9 +179,18 @@ export const LoginScreen = () => {
     if (!canUseGoogleLogin) {
       Toast.show({
         type: "error",
-        text1: "Google login",
-        text2: "Chưa cấu hình Google OAuth Client ID",
+        text1: "Google login chưa được cấu hình",
+        text2: "Vui lòng thêm Google OAuth Client IDs vào app.json",
+        visibilityTime: 4000,
       });
+      console.warn(
+        "Google OAuth not configured. Please add Client IDs to app.json extra section:",
+        {
+          googleWebClientId: "your-web-client-id",
+          googleIosClientId: "your-ios-client-id",
+          googleAndroidClientId: "your-android-client-id",
+        }
+      );
       return;
     }
 
@@ -194,7 +203,16 @@ export const LoginScreen = () => {
       return;
     }
 
-    await promptGoogleLogin();
+    try {
+      await promptGoogleLogin();
+    } catch (error: any) {
+      console.error("Google login error:", error);
+      Toast.show({
+        type: "error",
+        text1: "Google login thất bại",
+        text2: error.message || "Vui lòng thử lại",
+      });
+    }
   };
 
   if (isLoading) {
@@ -223,17 +241,18 @@ export const LoginScreen = () => {
           <TouchableOpacity
             style={[
               styles.googleButton,
-              (isSubmitting || !canUseGoogleLogin) && styles.disabledButton,
+              isSubmitting && styles.disabledButton,
+              !canUseGoogleLogin && styles.googleButtonWarning,
             ]}
             onPress={handleGoogleButtonPress}
-            disabled={isSubmitting || !canUseGoogleLogin}
+            disabled={isSubmitting}
           >
             {isGoogleLoading ? (
               <ActivityIndicator color={colors.primary} />
             ) : (
               <>
                 <AntDesign name="google" size={20} color={colors.primary} />
-                <Text style={styles.googleButtonText}>Sign in with Google</Text>
+                <Text style={styles.googleButtonText}>Đăng nhập bằng Google</Text>
               </>
             )}
           </TouchableOpacity>
@@ -398,6 +417,10 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 24,
     backgroundColor: colors.surface,
+  },
+  googleButtonWarning: {
+    borderColor: "#fbbf24",
+    backgroundColor: "#fef3c7",
   },
   googleButtonText: {
     fontSize: 16,

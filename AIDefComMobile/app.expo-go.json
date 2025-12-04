@@ -35,9 +35,9 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "googleWebClientId": "",
-      "googleIosClientId": "",
-      "googleAndroidClientId": ""
+      "googleWebClientId": "610663420023-dln5441dchtaue3abv4hiv9sak0f8v17.apps.googleusercontent.com",
+      "googleIosClientId": "610663420023-dln5441dchtaue3abv4hiv9sak0f8v17.apps.googleusercontent.com",
+      "googleAndroidClientId": "610663420023-dln5441dchtaue3abv4hiv9sak0f8v17.apps.googleusercontent.com"
     },
     "scheme": "aidefcommobile",
     "packagerOpts": {

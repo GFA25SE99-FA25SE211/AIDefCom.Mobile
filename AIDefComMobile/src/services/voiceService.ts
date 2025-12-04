@@ -72,17 +72,17 @@ const handleResponse = async (response: Response, fallbackMessage: string) => {
     if (status === 400 && json) {
       // Case 1: Backend trả về 400 nhưng không có error field (thiếu success field)
       if (!json.error) {
-        // Kiểm tra các field chỉ có trong success response
-        if (json.enrollment_count !== undefined || json.completed !== undefined || json.id) {
-          console.log("⚠️ Backend returned 400 but response looks like success (missing success field)", json);
-          // Coi như success, normalize response
-          json.type = json.type || "enrollment";
-          json.success = true;
-          json.user_id = json.user_id || json.id;
-          json.min_required = json.min_required || 3;
-          json.is_complete = json.is_complete !== undefined ? json.is_complete : json.completed;
-          console.log("✅ Normalized response as success", json);
-          return json as VoiceResponse;
+      // Kiểm tra các field chỉ có trong success response
+      if (json.enrollment_count !== undefined || json.completed !== undefined || json.id) {
+        console.log("⚠️ Backend returned 400 but response looks like success (missing success field)", json);
+        // Coi như success, normalize response
+        json.type = json.type || "enrollment";
+        json.success = true;
+        json.user_id = json.user_id || json.id;
+        json.min_required = json.min_required || 3;
+        json.is_complete = json.is_complete !== undefined ? json.is_complete : json.completed;
+        console.log("✅ Normalized response as success", json);
+        return json as VoiceResponse;
         }
       }
       
@@ -303,12 +303,12 @@ export const voiceService = {
     console.log("🔐 Verifying voice sample using VERIFY API:", verifyUrl);
 
     const response = await fetch(verifyUrl, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: formData,
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
     });
 
     return handleResponse(response, "Voice verification failed");
