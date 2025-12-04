@@ -39,7 +39,7 @@ export const DashboardScreen = () => {
       try {
         setIsLoading(true);
         setError(null);
-
+        
         // Phân biệt role để dùng đúng API:
         // - Student: /defense-sessions/student/{userId}
         // - Lecturer: /defense-sessions/lecturer/{userId}
@@ -49,15 +49,15 @@ export const DashboardScreen = () => {
             const data = await defenseSessionService.getByStudentId(user.id);
             setSessions(data);
           } else if (user.roles.includes("Lecturer")) {
-            const data = await defenseSessionService.getByLecturerId(user.id);
-            setSessions(data);
+          const data = await defenseSessionService.getByLecturerId(user.id);
+          setSessions(data);
           } else {
             const data = await defenseSessionService.getAll();
             setSessions(data);
           }
         } else {
-          const data = await defenseSessionService.getAll();
-          setSessions(data);
+        const data = await defenseSessionService.getAll();
+        setSessions(data);
         }
       } catch (err: any) {
         console.error("Failed to load defense sessions", err);

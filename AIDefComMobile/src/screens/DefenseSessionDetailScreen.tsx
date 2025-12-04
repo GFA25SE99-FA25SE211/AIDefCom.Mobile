@@ -205,45 +205,42 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
     <View style={globalStyles.container}>
       <StatusBar style="auto" />
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Status Card với Mic Icon - giống web */}
+        {/* Status Card với Mic Controls - giống web */}
         <View style={styles.micControlsCard}>
-          <View style={[styles.statusRow, sessionStarted && { marginBottom: 12 }]}>
-            <View style={styles.statusIndicator}>
-              <View
-                style={[
-                  styles.statusDot,
-                  sessionStarted ? styles.statusDotActive : styles.statusDotInactive,
-                ]}
-              />
-            </View>
-            <View style={styles.statusTextContainer}>
-              <Text style={styles.statusText}>
-                {sessionStarted
-                  ? "Phiên bảo vệ đã bắt đầu"
-                  : "Chờ thư ký bắt đầu phiên bảo vệ"}
-              </Text>
-            </View>
-            <MaterialIcons
-              name={isRecording ? "mic" : "mic-none"}
-              size={24}
-              color={isRecording ? "#ef4444" : colors.textSecondary}
-            />
+          <View style={styles.statusRow}>
+            <Text style={styles.statusText}>
+              {sessionStarted
+                ? "Phiên bảo vệ đã bắt đầu"
+                : "Chờ thư ký bắt đầu phiên bảo vệ"}
+            </Text>
           </View>
 
-          {/* Mic Controls */}
-          {sessionStarted && (
-            <View style={styles.micControlsRow}>
-              {!isRecording ? (
+          {/* Mic Controls - luôn hiển thị */}
+          <View style={styles.micControlsRow}>
+            <View style={styles.micButtonWrapper}>
+              {!sessionStarted ? (
+                // Khi chưa bắt đầu: hiển thị nút Start Mic disabled
+                <View style={[styles.micButton, styles.micButtonDisabled]}>
+                  <MaterialIcons
+                    name="mic-none"
+                    size={20}
+                    color="#9ca3af"
+                  />
+                  <Text style={styles.micButtonTextDisabled}>Start Mic</Text>
+                </View>
+              ) : !isRecording ? (
+                // Khi đã bắt đầu nhưng chưa recording: nút Start Mic màu cam
                 <TouchableOpacity
                   onPress={handleToggleRecording}
                   disabled={!wsConnected}
                   style={[
                     styles.micButton,
+                    styles.micButtonOrange,
                     !wsConnected && styles.micButtonDisabled,
                   ]}
                 >
                   <MaterialIcons
-                    name="mic"
+                    name="mic-none"
                     size={20}
                     color={wsConnected ? "#ffffff" : "#9ca3af"}
                   />
@@ -257,13 +254,14 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
                   </Text>
                 </TouchableOpacity>
               ) : (
+                // Khi đang recording: nút màu cam
                 <>
                   {!isAsking && (
                     <TouchableOpacity
                       onPress={handleToggleRecording}
-                      style={[styles.micButton, styles.micButtonStop]}
+                      style={[styles.micButton, styles.micButtonOrange]}
                     >
-                      <MaterialIcons name="mic-off" size={20} color="#ffffff" />
+                      <MaterialIcons name="mic" size={20} color="#ffffff" />
                       <Text style={styles.micButtonText}>Stop Mic</Text>
                     </TouchableOpacity>
                   )}
@@ -288,18 +286,18 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
                   </TouchableOpacity>
                 </>
               )}
-
-              {/* Connection status */}
-              <View
-                style={[
-                  styles.connectionDot,
-                  wsConnected
-                    ? styles.connectionDotConnected
-                    : styles.connectionDotDisconnected,
-                ]}
-              />
             </View>
-          )}
+
+            {/* Connection status - luôn hiển thị */}
+            <View
+              style={[
+                styles.connectionDot,
+                wsConnected
+                  ? styles.connectionDotConnected
+                  : styles.connectionDotDisconnected,
+              ]}
+            />
+          </View>
         </View>
 
         <View style={styles.sessionCard}>
@@ -433,12 +431,12 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
                       key={m.userId || m.id || m.Id}
                       style={styles.memberRow}
                     >
-                      <View style={[styles.avatarCircle, styles.studentAvatar]}>
-                        <Text style={styles.avatarText}>
+                    <View style={[styles.avatarCircle, styles.studentAvatar]}>
+                      <Text style={styles.avatarText}>
                           {(m.fullName || m.FullName)?.charAt(0).toUpperCase() || "S"}
-                        </Text>
-                      </View>
-                      <View style={styles.memberInfo}>
+                      </Text>
+                    </View>
+                    <View style={styles.memberInfo}>
                         <View style={styles.memberNameRow}>
                           <Text style={styles.memberName}>
                             {m.fullName || m.FullName || "N/A"}
@@ -455,11 +453,11 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
                             </View>
                           )}
                         </View>
-                        <Text style={styles.memberRole}>
+                      <Text style={styles.memberRole}>
                           {m.studentCode || m.userId || m.id || m.Id || "Student"}
-                        </Text>
-                      </View>
+                      </Text>
                     </View>
+                  </View>
                   );
                 })
               )}
@@ -556,6 +554,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    marginBottom: 12,
   },
   statusIndicator: {
     width: 40,
@@ -676,8 +675,15 @@ const styles = StyleSheet.create({
   micControlsRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  micButtonWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     flexWrap: "wrap",
+    flex: 1,
   },
   micButton: {
     flexDirection: "row",
@@ -686,14 +692,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: "#7c3aed",
+    backgroundColor: "#4b5563",
   },
   micButtonDisabled: {
-    backgroundColor: "#9ca3af",
-    opacity: 0.5,
+    backgroundColor: "#4b5563",
+    opacity: 0.6,
   },
   micButtonStop: {
     backgroundColor: "#ef4444",
+  },
+  micButtonOrange: {
+    backgroundColor: "#f97316",
   },
   micButtonQuestion: {
     backgroundColor: "#4f46e5",
