@@ -24,6 +24,7 @@ import { useAuth } from "../context/AuthContext";
 import { colors, globalStyles } from "../utils/styles";
 import { Loading } from "../components/Loading";
 import { googleOAuthConfig, hasGoogleOAuthConfig } from "../config/google";
+import Constants from "expo-constants";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { navigateByEnrollmentStatus } from "../utils/voiceNavigation";
 
@@ -47,6 +48,8 @@ export const LoginScreen = () => {
     googleOAuthConfig.androidClientId ||
     "placeholder-client-id";
 
+  const scheme = Constants.expoConfig?.scheme || "aidefcommobile";
+  
   const googleAuthRequestConfig: Partial<GoogleAuthRequestConfig> = {
     clientId: platformFallbackClientId,
     iosClientId: googleOAuthConfig.iosClientId || platformFallbackClientId,
@@ -55,6 +58,11 @@ export const LoginScreen = () => {
     webClientId: googleOAuthConfig.webClientId || platformFallbackClientId,
     responseType: "id_token",
     selectAccount: true,
+    redirectUri: Platform.select({
+      ios: `${scheme}:/oauth2redirect`,
+      android: `${scheme}:/oauth2redirect`,
+      web: undefined,
+    }),
   };
 
   const [googleRequest, googleResponse, promptGoogleLogin] =

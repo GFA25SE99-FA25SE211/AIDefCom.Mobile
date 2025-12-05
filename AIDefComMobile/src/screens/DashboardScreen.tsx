@@ -14,7 +14,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../context/AuthContext";
 import { colors, globalStyles } from "../utils/styles";
-import { defenseSessionService } from "../services/api";
+import { defenseSessionService, groupService } from "../services/api";
 import { DefenseSession } from "../types/defense";
 import { RootStackParamList } from "../navigation/AppNavigator";
 
@@ -44,21 +44,38 @@ export const DashboardScreen = () => {
         // - Student: /defense-sessions/student/{userId}
         // - Lecturer: /defense-sessions/lecturer/{userId}
         // - Khác: getAll()
+        let data: DefenseSession[] = [];
         if (user?.id && Array.isArray(user.roles) && user.roles.length > 0) {
           if (user.roles.includes("Student")) {
-            const data = await defenseSessionService.getByStudentId(user.id);
-            setSessions(data);
+            data = await defenseSessionService.getByStudentId(user.id);
           } else if (user.roles.includes("Lecturer")) {
-          const data = await defenseSessionService.getByLecturerId(user.id);
-          setSessions(data);
+            data = await defenseSessionService.getByLecturerId(user.id);
           } else {
-            const data = await defenseSessionService.getAll();
-            setSessions(data);
+            data = await defenseSessionService.getAll();
           }
         } else {
-        const data = await defenseSessionService.getAll();
-        setSessions(data);
+          data = await defenseSessionService.getAll();
         }
+
+        // Fetch group data cho mỗi session để lấy topicTitle
+        const sessionsWithGroupData = await Promise.all(
+          data.map(async (session) => {
+            try {
+              const group = await groupService.getById(session.groupId);
+              return {
+                ...session,
+                topicTitle_VN: group.topicTitle_VN || group.TopicTitle_VN,
+                topicTitle_EN: group.topicTitle_EN || group.TopicTitle_EN,
+                projectCode: group.projectCode || group.ProjectCode,
+              };
+            } catch (err) {
+              console.warn(`Failed to load group data for ${session.groupId}:`, err);
+              return session;
+            }
+          })
+        );
+
+        setSessions(sessionsWithGroupData);
       } catch (err: any) {
         console.error("Failed to load defense sessions", err);
         setError("Không tải được danh sách phiên bảo vệ");
@@ -171,7 +188,7 @@ export const DashboardScreen = () => {
                 <View style={styles.sessionDetailCard}>
                   <Text style={styles.detailLabel}>Project</Text>
                   <Text style={styles.detailValue}>
-                    AI-Driven Capstone Defense (sample)
+                    {session.topicTitle_VN || session.TopicTitle_VN || session.topicTitle_EN || session.TopicTitle_EN || "No project title"}
                   </Text>
                 </View>
 
