@@ -7,6 +7,12 @@ export interface DefenseSession {
   endTime: string;
   status: string;
   councilId: number;
+  topicTitle_VN?: string;
+  topicTitle_EN?: string;
+  TopicTitle_VN?: string;
+  TopicTitle_EN?: string;
+  projectCode?: string;
+  ProjectCode?: string;
 }
 
 // Người tham gia phiên bảo vệ (giảng viên + sinh viên)

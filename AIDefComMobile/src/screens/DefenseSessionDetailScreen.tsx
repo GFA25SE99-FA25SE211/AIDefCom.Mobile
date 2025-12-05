@@ -36,6 +36,7 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
   
   // Mic và WebSocket states
   const [sessionStarted, setSessionStarted] = useState(false);
+  const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null); // userId của người đang nói
   const mySessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -48,32 +49,75 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
   // WebSocket event handler
   const handleSTTEvent = (msg: any) => {
     const eventType = msg.type || msg.event;
+    console.log("📨 WebSocket event received:", eventType, msg);
 
-    if (eventType === "session_started") {
+    if (eventType === "session_started" || eventType === "session:started") {
+      console.log("✅ Session started event received");
       setSessionStarted(true);
       Toast.show({
         type: "info",
         text1: "Phiên bảo vệ đã bắt đầu",
         text2: "Bạn có thể sử dụng mic",
       });
-    } else if (eventType === "session_ended") {
+    } else if (eventType === "session_ended" || eventType === "session_stopped" || eventType === "session:ended") {
       setSessionStarted(false);
+      setCurrentSpeaker(null);
+      // Nếu đang recording, dừng lại
+      if (isRecording) {
+        stopRecording();
+        if (user?.id) {
+          broadcastSpeakerStopped(user.id);
+        }
+      }
       Toast.show({
         type: "info",
         text1: "Phiên bảo vệ đã kết thúc",
       });
     } else if (eventType === "connected") {
+      console.log("✅ WebSocket connected:", msg.session_id, "room_size:", msg.room_size);
       if (msg.session_id) {
         mySessionIdRef.current = msg.session_id;
       }
-    } else if (eventType === "question_mode_result") {
-      Toast.show({
-        type: msg.is_duplicate ? "warning" : "success",
-        text1: msg.is_duplicate ? "Câu hỏi trùng" : "Câu hỏi hợp lệ",
-        text2: msg.is_duplicate
-          ? "Hệ thống đã ghi nhận câu hỏi này trước đó"
-          : "Đã ghi nhận câu hỏi mới",
-      });
+      // Nếu đã có room_size > 0 và session đang active, có thể tự động enable
+      // Nhưng để an toàn, vẫn chờ session_started từ thư ký
+    } else if (eventType === "speaker:started" || eventType === "speaker_started") {
+      // Người khác bắt đầu nói
+      const speakerId = msg.userId || msg.user_id || msg.speakerId;
+      if (speakerId && speakerId !== user?.id) {
+        setCurrentSpeaker(speakerId);
+        const speakerName = users.find((u) => (u.id || u.userId || u.Id) === speakerId)?.fullName || "Một thành viên";
+        Toast.show({
+          type: "info",
+          text1: `${speakerName} đang nói`,
+          text2: "Vui lòng chờ đến lượt của bạn",
+        });
+      }
+    } else if (eventType === "speaker:stopped" || eventType === "speaker_stopped") {
+      // Người khác dừng nói
+      const speakerId = msg.userId || msg.user_id || msg.speakerId;
+      if (speakerId && speakerId === currentSpeaker) {
+        setCurrentSpeaker(null);
+        console.log("✅ Speaker stopped, mic is now available");
+      }
+    } else if (eventType === "broadcast_speaker_started" || eventType === "broadcast_speaker:started") {
+      // Broadcast từ backend khi có người bắt đầu nói
+      const speakerId = msg.userId || msg.user_id || msg.speakerId;
+      if (speakerId && speakerId !== user?.id) {
+        setCurrentSpeaker(speakerId);
+        const speakerName = users.find((u) => (u.id || u.userId || u.Id) === speakerId)?.fullName || "Một thành viên";
+        Toast.show({
+          type: "info",
+          text1: `${speakerName} đang nói`,
+          text2: "Vui lòng chờ đến lượt của bạn",
+        });
+      }
+    } else if (eventType === "broadcast_speaker_stopped" || eventType === "broadcast_speaker:stopped") {
+      // Broadcast từ backend khi có người dừng nói
+      const speakerId = msg.userId || msg.user_id || msg.speakerId;
+      if (speakerId && speakerId === currentSpeaker) {
+        setCurrentSpeaker(null);
+        console.log("✅ Broadcast: Speaker stopped, mic is now available");
+      }
     }
   };
 
@@ -84,14 +128,12 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
 
   const {
     isRecording,
-    isAsking,
     wsConnected,
     startRecording,
     stopRecording,
-    toggleAsk,
     stopSession,
-    broadcastQuestionStarted,
-    broadcastQuestionProcessing,
+    broadcastSpeakerStarted,
+    broadcastSpeakerStopped,
   } = useAudioRecorder({
     wsUrl: WS_URL,
     onWsEvent: handleSTTEvent,
@@ -124,9 +166,31 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
     loadDetail();
   }, [session.id, session.groupId]);
 
+  // Cleanup: reset speaker state khi unmount hoặc session end
+  useEffect(() => {
+    return () => {
+      if (isRecording && user?.id) {
+        broadcastSpeakerStopped(user.id);
+      }
+      setCurrentSpeaker(null);
+    };
+  }, [isRecording, user?.id, broadcastSpeakerStopped]);
+
   const handleToggleRecording = async () => {
     if (isRecording) {
-      stopRecording();
+      // Dừng nói và broadcast
+      try {
+        stopRecording();
+        // Broadcast speaker stopped TRƯỚC khi reset state
+        if (user?.id) {
+          broadcastSpeakerStopped(user.id);
+        }
+        // Reset state sau khi broadcast
+        setCurrentSpeaker(null);
+      } catch (error: any) {
+        console.error("Error stopping recording:", error);
+        Alert.alert("Lỗi", "Không thể dừng ghi âm");
+      }
     } else {
       if (!sessionStarted) {
         Alert.alert(
@@ -135,24 +199,52 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
         );
         return;
       }
+      
+      // Kiểm tra xem có người khác đang nói không
+      if (currentSpeaker && currentSpeaker !== user?.id) {
+        const speakerName = users.find((u) => (u.id || u.userId || u.Id) === currentSpeaker)?.fullName || "Một thành viên";
+        Alert.alert(
+          "Đang có người nói",
+          `${speakerName} đang nói. Vui lòng chờ đến lượt của bạn.`
+        );
+        return;
+      }
+      
+      // Kiểm tra WebSocket connection
+      if (!wsConnected) {
+        console.warn("⚠️ WebSocket not connected, attempting to connect...");
+        Alert.alert(
+          "Chưa kết nối",
+          "Đang kết nối WebSocket. Vui lòng thử lại sau."
+        );
+        return;
+      }
+      
+      console.log("🎤 Attempting to start recording:", {
+        sessionStarted,
+        wsConnected,
+        currentSpeaker,
+        userId: user?.id,
+      });
+      
       try {
+        // Broadcast speaker started TRƯỚC khi start recording để các client khác biết
+        if (user?.id) {
+          broadcastSpeakerStarted(user.id);
+          setCurrentSpeaker(user.id);
+        }
+        // Sau đó mới start recording
         await startRecording();
+        console.log("✅ Recording started successfully");
       } catch (error: any) {
+        console.error("❌ Failed to start recording:", error);
+        // Nếu start recording thất bại, reset speaker state
+        if (user?.id) {
+          broadcastSpeakerStopped(user.id);
+          setCurrentSpeaker(null);
+        }
         Alert.alert("Lỗi", error.message || "Không thể bắt đầu ghi âm");
       }
-    }
-  };
-
-  const handleToggleQuestion = async () => {
-    if (!isAsking) {
-      broadcastQuestionStarted();
-      toggleAsk();
-    } else {
-      if (isRecording) {
-        stopRecording();
-      }
-      broadcastQuestionProcessing();
-      toggleAsk();
     }
   };
 
@@ -183,23 +275,37 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
   }));
 
   const councilMembers = mappedUsers.filter((u) => u.roleType !== "Student");
-  const studentMembers = mappedUsers.filter((u) => u.roleType === "Student");
 
-  // Merge students với GroupRole từ API students/group/{groupId}
+  // Ưu tiên lấy tất cả students từ getByGroupId (đầy đủ), sau đó merge với thông tin từ session nếu có
+  // Đảm bảo hiển thị đủ tất cả thành viên trong nhóm
   const studentsWithRole = students.length > 0
-    ? studentMembers.map((user) => {
-        const studentData = students.find(
-          (s: any) => s.id === user.userId || s.Id === user.userId
+    ? students.map((studentData: any) => {
+        // Tìm thông tin từ session users nếu có
+        const sessionUser = mappedUsers.find(
+          (u) =>
+            (u.userId || u.id || u.Id) === (studentData.id || studentData.Id || studentData.userId)
         );
+        
+        // Lấy groupRole từ studentData (API students/group/{groupId})
+        const groupRole = studentData.groupRole || studentData.GroupRole || "Member";
+        
         return {
-          ...user,
-          groupRole: studentData?.groupRole || studentData?.GroupRole || "Member",
+          userId: studentData.id || studentData.Id || studentData.userId,
+          id: studentData.id || studentData.Id || studentData.userId,
+          fullName: sessionUser?.fullName || studentData.fullName || studentData.userName || studentData.FullName || "Unknown",
+          FullName: sessionUser?.fullName || studentData.fullName || studentData.userName || studentData.FullName || "Unknown",
+          email: sessionUser?.email || studentData.email || studentData.Email || "",
+          studentCode: studentData.studentCode || studentData.StudentCode || studentData.id || studentData.Id,
+          groupRole: groupRole,
         };
       })
-    : studentMembers.map((user) => ({
-        ...user,
-        groupRole: "Member", // Default nếu không có data
-      }));
+    : // Fallback: nếu không có students từ getByGroupId, dùng từ session users
+      mappedUsers
+        .filter((u) => u.roleType === "Student")
+        .map((user) => ({
+          ...user,
+          groupRole: "Member", // Default nếu không có data
+        }));
 
   return (
     <View style={globalStyles.container}>
@@ -210,8 +316,12 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
           <View style={styles.statusRow}>
             <Text style={styles.statusText}>
               {sessionStarted
-                ? "Phiên bảo vệ đã bắt đầu"
-                : "Chờ thư ký bắt đầu phiên bảo vệ"}
+                ? currentSpeaker && currentSpeaker !== user?.id
+                  ? `${users.find((u) => (u.id || u.userId || u.Id) === currentSpeaker)?.fullName || "Một thành viên"} đang nói`
+                  : "Phiên bảo vệ đã bắt đầu"
+                : wsConnected
+                ? "Chờ thư ký bắt đầu phiên bảo vệ"
+                : "Đang kết nối..."}
             </Text>
           </View>
 
@@ -232,71 +342,50 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
                 // Khi đã bắt đầu nhưng chưa recording: nút Start Mic màu cam
                 <TouchableOpacity
                   onPress={handleToggleRecording}
-                  disabled={!wsConnected}
+                  disabled={!wsConnected || (currentSpeaker !== null && currentSpeaker !== user?.id)}
                   style={[
                     styles.micButton,
                     styles.micButtonOrange,
-                    !wsConnected && styles.micButtonDisabled,
+                    (!wsConnected || (currentSpeaker !== null && currentSpeaker !== user?.id)) && styles.micButtonDisabled,
                   ]}
                 >
                   <MaterialIcons
                     name="mic-none"
                     size={20}
-                    color={wsConnected ? "#ffffff" : "#9ca3af"}
+                    color={wsConnected && (!currentSpeaker || currentSpeaker === user?.id) ? "#ffffff" : "#9ca3af"}
                   />
                   <Text
                     style={[
                       styles.micButtonText,
-                      !wsConnected && styles.micButtonTextDisabled,
+                      (!wsConnected || (currentSpeaker !== null && currentSpeaker !== user?.id)) && styles.micButtonTextDisabled,
                     ]}
                   >
-                    Start Mic
+                    {currentSpeaker && currentSpeaker !== user?.id ? "Đang có người nói" : "Start Mic"}
                   </Text>
                 </TouchableOpacity>
               ) : (
                 // Khi đang recording: nút màu cam
-                <>
-                  {!isAsking && (
-                    <TouchableOpacity
-                      onPress={handleToggleRecording}
-                      style={[styles.micButton, styles.micButtonOrange]}
-                    >
-                      <MaterialIcons name="mic" size={20} color="#ffffff" />
-                      <Text style={styles.micButtonText}>Stop Mic</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  <TouchableOpacity
-                    onPress={handleToggleQuestion}
-                    style={[
-                      styles.micButton,
-                      isAsking
-                        ? styles.micButtonQuestionActive
-                        : styles.micButtonQuestion,
-                    ]}
-                  >
-                    <MaterialIcons
-                      name={isAsking ? "stop-circle" : "message"}
-                      size={20}
-                      color="#ffffff"
-                    />
-                    <Text style={styles.micButtonText}>
-                      {isAsking ? "Kết thúc câu hỏi" : "Đặt câu hỏi"}
-                    </Text>
-                  </TouchableOpacity>
-                </>
+                <TouchableOpacity
+                  onPress={handleToggleRecording}
+                  style={[styles.micButton, styles.micButtonOrange]}
+                >
+                  <MaterialIcons name="mic" size={20} color="#ffffff" />
+                  <Text style={styles.micButtonText}>Stop Mic</Text>
+                </TouchableOpacity>
               )}
             </View>
 
-            {/* Connection status - luôn hiển thị */}
-            <View
-              style={[
-                styles.connectionDot,
-                wsConnected
-                  ? styles.connectionDotConnected
-                  : styles.connectionDotDisconnected,
-              ]}
-            />
+            {/* Connection status - luôn hiển thị, cách nút mic một khoảng */}
+            <View style={styles.connectionDotWrapper}>
+              <View
+                style={[
+                  styles.connectionDot,
+                  wsConnected
+                    ? styles.connectionDotConnected
+                    : styles.connectionDotDisconnected,
+                ]}
+              />
+            </View>
           </View>
         </View>
 
@@ -704,12 +793,6 @@ const styles = StyleSheet.create({
   micButtonOrange: {
     backgroundColor: "#f97316",
   },
-  micButtonQuestion: {
-    backgroundColor: "#4f46e5",
-  },
-  micButtonQuestionActive: {
-    backgroundColor: "#f97316",
-  },
   micButtonText: {
     color: "#ffffff",
     fontSize: 14,
@@ -722,6 +805,9 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
+  },
+  connectionDotWrapper: {
+    marginLeft: 12,
   },
   connectionDotConnected: {
     backgroundColor: "#10b981",

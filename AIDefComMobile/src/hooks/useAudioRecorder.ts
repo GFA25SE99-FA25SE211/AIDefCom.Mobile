@@ -247,6 +247,28 @@ export const useAudioRecorder = ({
     }
   }, []);
 
+  // Broadcast speaker started
+  const broadcastSpeakerStarted = useCallback((userId: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: "speaker:started",
+        userId: userId,
+      }));
+      console.log("📢 Sent speaker:started for userId:", userId);
+    }
+  }, []);
+
+  // Broadcast speaker stopped
+  const broadcastSpeakerStopped = useCallback((userId: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: "speaker:stopped",
+        userId: userId,
+      }));
+      console.log("📢 Sent speaker:stopped for userId:", userId);
+    }
+  }, []);
+
   return {
     isRecording,
     isAsking,
@@ -257,6 +279,8 @@ export const useAudioRecorder = ({
     stopSession,
     broadcastQuestionStarted,
     broadcastQuestionProcessing,
+    broadcastSpeakerStarted,
+    broadcastSpeakerStopped,
   };
 };
 
