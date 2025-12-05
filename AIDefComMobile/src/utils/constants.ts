@@ -13,9 +13,9 @@ export const VOICE_AUTH_CONFIG = {
   AUTH_PATH: (userId: string) => `/voice/users/${userId}/verify`,
   REQUIRED_SAMPLES: 3, // Registration requires 3 samples
   PROMPTS: [
-    "Xin chào, tôi là {Dán tên người nói vào}. Hiện tại tôi đang thực hiện đoạn thu âm mẫu đầu tiên để cung cấp dữ liệu cho hệ thống AIDefCom nhằm phân tích và xác thực giọng nói. Tôi sẽ cố gắng duy trì tốc độ nói ổn định và phát âm rõ ràng để hạn chế sai số trong quá trình xử lý. Không gian xung quanh tôi tương đối yên tĩnh, nên hy vọng chất lượng âm thanh sẽ đủ tốt cho hệ thống học và nhận dạng đúng giọng của tôi trong những lần sử dụng tiếp theo.",
-    "Đây là đoạn thu âm mẫu thứ hai để hỗ trợ AIDefCom xây dựng mô hình nhận diện giọng nói chính xác hơn. Tôi đang nói ở tốc độ tự nhiên, không quá nhanh, không quá chậm. Mục tiêu của đoạn này là tạo ra dữ liệu có tính ổn định và dễ phân tích. Trong thực tế, giọng nói có thể thay đổi tùy theo ngữ cảnh, cảm xúc hay môi trường, vì vậy bản thu này giúp hệ thống có thêm thông tin để nhận dạng tôi trong nhiều tình huống khác nhau.",
-    "Đây là bản thu mẫu thứ ba dành cho quá trình huấn luyện và xác thực của AIDefCom. Tôi đang nói với giọng bình thường giống như khi trao đổi công việc hằng ngày. Nếu hệ thống nhận diện tốt, sau này những thao tác đăng nhập, phê duyệt hay xác minh danh tính của tôi sẽ trở nên nhanh chóng và thuận tiện hơn. Tôi hy vọng đoạn thu này có đủ độ dài và sự rõ ràng để hỗ trợ hệ thống cải thiện độ chính xác.",
+    "Xin chào, tôi là {Tên người nói}. Đây là đoạn thu mẫu để hỗ trợ hệ thống AIDefCom, một nền tảng AI được thiết kế giúp số hóa và tối ưu hóa toàn bộ quy trình chấm điểm và ghi biên bản bảo vệ khóa luận. Hệ thống sử dụng giọng nói của tôi để cải thiện khả năng tương tác và hỗ trợ hội đồng trong các phiên bảo vệ sau này.",
+    "Tôi đang thu âm đoạn mẫu để AIDefCom xây dựng hồ sơ nhận diện giọng nói của tôi. Trong khoảng thời gian này, tôi sẽ nói với tốc độ ổn định và phát âm rõ ràng để hệ thống thu thập dữ liệu chất lượng cao. Các bản thu giúp AI nhận dạng chính xác hơn khi tôi đặt câu hỏi, ghi chú hoặc thực hiện các thao tác khác trong buổi bảo vệ.",
+    "Đây là bản thu mẫu cho AIDefCom theo đúng yêu cầu về bảo mật và quyền riêng tư. Tôi xác nhận rằng giọng nói của tôi được sử dụng phục vụ cho mục đích học thuật và sẽ được lưu trữ, mã hóa và xử lý theo các chính sách bảo vệ dữ liệu tương tự chuẩn GDPR. Tôi đồng ý cung cấp dữ liệu để hệ thống nhận diện thuận tiện và an toàn hơn.",
   ],
 };
 

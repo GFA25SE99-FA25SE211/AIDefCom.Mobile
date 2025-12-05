@@ -42,6 +42,13 @@ export const LoginScreen = () => {
 
   const { login, loginWithGoogle, isLoading, user, token } = useAuth();
 
+  // Phát hiện Expo Go: nếu executionEnvironment là 'storeClient' thì đang dùng Expo Go
+  const isExpoGo = Constants.executionEnvironment === 'storeClient';
+  
+  // Khi dùng Expo Go, phải dùng Web Client ID vì iOS Client ID không hỗ trợ exp:// redirect
+  // Khi dùng development build hoặc production, dùng iOS Client ID
+  const shouldUseWebClient = isExpoGo && Platform.OS === 'ios';
+  
   const platformFallbackClientId =
     googleOAuthConfig.webClientId ||
     googleOAuthConfig.iosClientId ||
@@ -51,22 +58,42 @@ export const LoginScreen = () => {
   const scheme = Constants.expoConfig?.scheme || "aidefcommobile";
   
   const googleAuthRequestConfig: Partial<GoogleAuthRequestConfig> = {
-    clientId: platformFallbackClientId,
-    iosClientId: googleOAuthConfig.iosClientId || platformFallbackClientId,
+    // Nếu đang dùng Expo Go trên iOS, chỉ dùng Web Client ID
+    clientId: shouldUseWebClient 
+      ? (googleOAuthConfig.webClientId || platformFallbackClientId)
+      : platformFallbackClientId,
+    // Chỉ set iOS Client ID khi KHÔNG phải Expo Go
+    iosClientId: shouldUseWebClient 
+      ? undefined 
+      : (googleOAuthConfig.iosClientId || platformFallbackClientId),
     androidClientId:
       googleOAuthConfig.androidClientId || platformFallbackClientId,
     webClientId: googleOAuthConfig.webClientId || platformFallbackClientId,
     responseType: "id_token",
     selectAccount: true,
-    redirectUri: Platform.select({
-      ios: `${scheme}:/oauth2redirect`,
-      android: `${scheme}:/oauth2redirect`,
-      web: undefined,
-    }),
+    // Với Expo Go, set redirectUri rõ ràng để dùng Expo auth service proxy
+    // Development build/production iOS sử dụng Google's iOS URL Scheme tự động
+    redirectUri: isExpoGo 
+      ? `https://auth.expo.io/@anonymous/aidefcommobile` // Expo Go dùng Expo auth service proxy - phải khớp với Google Cloud Console
+      : Platform.select({
+          ios: undefined, // iOS native build sử dụng Google's iOS URL Scheme tự động
+          android: `${scheme}:/oauth2redirect`,
+          web: undefined,
+        }),
   };
 
   const [googleRequest, googleResponse, promptGoogleLogin] =
     Google.useAuthRequest(googleAuthRequestConfig);
+
+  // Debug: Log cấu hình OAuth
+  useEffect(() => {
+    console.log("=== Google OAuth Config Debug ===");
+    console.log("isExpoGo:", isExpoGo);
+    console.log("Platform.OS:", Platform.OS);
+    console.log("shouldUseWebClient:", shouldUseWebClient);
+    console.log("googleAuthRequestConfig:", JSON.stringify(googleAuthRequestConfig, null, 2));
+    console.log("===================================");
+  }, [isExpoGo, shouldUseWebClient]);
 
   useEffect(() => {
     const processGoogleResponse = async () => {

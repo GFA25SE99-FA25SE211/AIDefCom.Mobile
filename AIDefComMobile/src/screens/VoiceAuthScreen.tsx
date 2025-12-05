@@ -81,7 +81,7 @@ export const VoiceAuthScreen = () => {
     const raw = prompts[Math.min(index, prompts.length - 1)] || prompts[0] || "";
     const emailName = user?.email && user.email.includes("@") ? user.email.split("@")[0] : undefined;
     const displayName = user?.fullName || emailName || "tôi";
-    return raw.replace("{Dán tên người nói vào}", displayName);
+    return raw.replace("{Tên người nói}", displayName);
   };
 
   const currentPrompt = getPromptForIndex(0); // Always use first prompt for verification

@@ -15,7 +15,10 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Ứng dụng cần truy cập microphone để ghi âm và hiển thị mức độ âm thanh trong quá trình đăng ký giọng nói."
+        "NSMicrophoneUsageDescription": "Ứng dụng cần truy cập microphone để ghi âm và hiển thị mức độ âm thanh trong quá trình đăng ký giọng nói.",
+        "LSApplicationQueriesSchemes": [
+          "com.googleusercontent.apps.610663420023-dl82fv2cd71m1nqm5mivjq4mve19f2un"
+        ]
       },
       "bundleIdentifier": "com.anonymous.AIDefComMobile"
     },
@@ -37,7 +40,7 @@
     },
     "extra": {
       "googleWebClientId": "610663420023-dln5441dchtaue3abv4hiv9sak0f8v17.apps.googleusercontent.com",
-      "googleIosClientId": "610663420023-md78ten256bco1gaob40k6nilqlq8sho.apps.googleusercontent.com",
+      "googleIosClientId": "610663420023-dl82fv2cd71m1nqm5mivjq4mve19f2un.apps.googleusercontent.com",
       "googleAndroidClientId": "610663420023-dln5441dchtaue3abv4hiv9sak0f8v17.apps.googleusercontent.com"
     },
     "scheme": "aidefcommobile",
