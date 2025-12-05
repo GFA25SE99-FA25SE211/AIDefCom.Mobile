@@ -134,7 +134,7 @@ export const VoiceRegistrationScreen = () => {
         ? user.email.split("@")[0]
         : undefined;
     const displayName = user?.fullName || emailName || "tôi";
-    return raw.replace("{Dán tên người nói vào}", displayName);
+    return raw.replace("{Tên người nói}", displayName);
   };
 
   const currentPrompt = getPromptForIndex(currentSampleIndex);

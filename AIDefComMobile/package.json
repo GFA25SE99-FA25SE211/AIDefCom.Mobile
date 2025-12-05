@@ -4,8 +4,8 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
-    "start:expo-go": "expo start --config app.expo-go.json",
-    "start:expo-go:tunnel": "expo start --config app.expo-go.json --tunnel",
+    "start:expo-go": "EXPO_PUBLIC_APP_CONFIG=app.expo-go.json expo start",
+    "start:expo-go:tunnel": "EXPO_PUBLIC_APP_CONFIG=app.expo-go.json expo start --tunnel",
     "start:tunnel": "expo start --tunnel",
     "start:lan": "expo start --lan",
     "start:localhost": "expo start --localhost",
