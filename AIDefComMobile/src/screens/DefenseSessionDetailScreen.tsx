@@ -38,6 +38,12 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
   const [sessionStarted, setSessionStarted] = useState(false);
   const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null); // userId của người đang nói
   const mySessionIdRef = useRef<string | null>(null);
+  
+  // Question mode states (giống member web)
+  const [questionResults, setQuestionResults] = useState<any[]>([]);
+  const [hasQuestionFinalText, setHasQuestionFinalText] = useState(false);
+  const questionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const waitingForQuestionResult = useRef<boolean>(false);
 
   useEffect(() => {
     navigation.setOptions({
@@ -73,6 +79,20 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
         type: "info",
         text1: "Phiên bảo vệ đã kết thúc",
       });
+    } else if (eventType === "mic_disabled" || eventType === "mic:disabled" || eventType === "broadcast_mic_disabled") {
+      // Thư ký đã tắt mic - tự động tắt mic của student
+      if (isRecording) {
+        stopRecording();
+        if (user?.id) {
+          broadcastSpeakerStopped(user.id);
+        }
+        setCurrentSpeaker(null);
+        Toast.show({
+          type: "info",
+          text1: "Mic đã bị tắt",
+          text2: "Thư ký đã tắt mic. Mic của bạn cũng đã bị tắt.",
+        });
+      }
     } else if (eventType === "connected") {
       console.log("✅ WebSocket connected:", msg.session_id, "room_size:", msg.room_size);
       if (msg.session_id) {
@@ -80,6 +100,10 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
       }
       // Nếu đã có room_size > 0 và session đang active, có thể tự động enable
       // Nhưng để an toàn, vẫn chờ session_started từ thư ký
+    } else if (eventType === "session_started" || eventType === "broadcast_session_started") {
+      // Thư ký đã bắt đầu phiên
+      console.log("🎤 Session started by secretary - mic enabled");
+      setSessionStarted(true);
     } else if (eventType === "speaker:started" || eventType === "speaker_started") {
       // Người khác bắt đầu nói
       const speakerId = msg.userId || msg.user_id || msg.speakerId;
@@ -121,8 +145,10 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
     }
   };
 
-  // WebSocket URL
-  const WS_URL = session.id
+  // WebSocket URL - thêm user_id để backend nhận diện voice
+  const WS_URL = session.id && user?.id
+    ? `wss://fastapi-service.happyforest-7c6ec975.southeastasia.azurecontainerapps.io/ws/stt?defense_session_id=${session.id}&role=member&user_id=${user.id}`
+    : session.id
     ? `wss://fastapi-service.happyforest-7c6ec975.southeastasia.azurecontainerapps.io/ws/stt?defense_session_id=${session.id}&role=member`
     : "";
 
@@ -792,6 +818,9 @@ const styles = StyleSheet.create({
   },
   micButtonOrange: {
     backgroundColor: "#f97316",
+  },
+  micButtonIndigo: {
+    backgroundColor: "#6366f1",
   },
   micButtonText: {
     color: "#ffffff",
