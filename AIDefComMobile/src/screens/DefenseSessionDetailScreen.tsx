@@ -57,6 +57,32 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
     const eventType = msg.type || msg.event;
     console.log("📨 WebSocket event received:", eventType, msg);
 
+    // Handle WebSocket errors gracefully
+    if (eventType === "error") {
+      console.error("❌ WebSocket error event:", msg.message || msg);
+      Toast.show({
+        type: "error",
+        text1: "Lỗi kết nối",
+        text2: msg.message || "Không thể kết nối đến server. Vui lòng thử lại.",
+      });
+      setSessionStarted(false);
+      return;
+    }
+
+    // Handle WebSocket close events
+    if (eventType === "closed") {
+      console.log("🔌 WebSocket closed:", msg.code, msg.reason);
+      setSessionStarted(false);
+      setCurrentSpeaker(null);
+      if (isRecording) {
+        stopRecording();
+        if (user?.id) {
+          broadcastSpeakerStopped(user.id);
+        }
+      }
+      return;
+    }
+
     if (eventType === "session_started" || eventType === "session:started") {
       console.log("✅ Session started event received");
       setSessionStarted(true);
