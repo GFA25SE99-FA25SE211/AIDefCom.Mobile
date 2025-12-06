@@ -35,44 +35,114 @@ export const useAudioRecorder = ({
       return;
     }
 
-    if (!wsUrl) return;
+    if (!wsUrl) {
+      console.warn("⚠️ WebSocket URL is empty");
+      return;
+    }
+
+    // Đóng connection cũ nếu có
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch (e) {
+        // Ignore errors when closing old connection
+      }
+      wsRef.current = null;
+    }
 
     isConnectingRef.current = true;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    
+    try {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
-    ws.onopen = () => {
-      console.log("✅ WebSocket connected:", wsUrl);
-      setWsConnected(true);
-      isConnectingRef.current = false;
-      // Gửi event connected cho parent
-      onWsEventRef.current?.({
-        type: "connected",
-        event: "connected",
-      });
-    };
+      ws.onopen = () => {
+        console.log("✅ WebSocket connected:", wsUrl);
+        setWsConnected(true);
+        isConnectingRef.current = false;
+        // Gửi event connected cho parent
+        onWsEventRef.current?.({
+          type: "connected",
+          event: "connected",
+        });
+      };
 
-    ws.onmessage = (evt) => {
-      try {
-        const msg = JSON.parse(evt.data);
-        onWsEventRef.current?.(msg);
-      } catch {
-        console.log("WS raw message:", evt.data);
-      }
-    };
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          onWsEventRef.current?.(msg);
+        } catch (err) {
+          // Handle non-JSON messages
+          console.log("WS raw message:", evt.data);
+          // Try to pass raw message if it's a string
+          if (typeof evt.data === 'string') {
+            onWsEventRef.current?.({
+              type: "message",
+              data: evt.data,
+            });
+          }
+        }
+      };
 
-    ws.onerror = (e) => {
-      console.error("❌ WebSocket error:", e);
-      setWsConnected(false);
-      isConnectingRef.current = false;
-    };
+      ws.onerror = (e) => {
+        // React Native WebSocket error events might not be standard Error objects
+        // Extract error information safely to avoid serialization issues
+        let errorMessage = "Unknown WebSocket error";
+        try {
+          if (e && typeof e === 'object') {
+            errorMessage = (e as any)?.message || (e as any)?.type || String(e);
+          } else if (e) {
+            errorMessage = String(e);
+          }
+        } catch (err) {
+          // If we can't extract error info, use default message
+          errorMessage = "WebSocket connection error";
+        }
+        
+        console.error("❌ WebSocket error:", errorMessage);
+        setWsConnected(false);
+        isConnectingRef.current = false;
+        
+        // Notify parent component about the error (with safe serialization)
+        try {
+          onWsEventRef.current?.({
+            type: "error",
+            event: "error",
+            message: errorMessage,
+          });
+        } catch (err) {
+          // If callback fails, just log
+          console.warn("Failed to notify parent of WebSocket error");
+        }
+      };
 
-    ws.onclose = () => {
-      console.log("🔌 WebSocket closed");
+      ws.onclose = (event) => {
+        console.log("🔌 WebSocket closed", event.code, event.reason);
+        setWsConnected(false);
+        isConnectingRef.current = false;
+        wsRef.current = null;
+        
+        // Notify parent about close event
+        onWsEventRef.current?.({
+          type: "closed",
+          event: "closed",
+          code: event.code,
+          reason: event.reason,
+        });
+      };
+    } catch (error: any) {
+      console.error("❌ Failed to create WebSocket:", error?.message || error);
       setWsConnected(false);
       isConnectingRef.current = false;
       wsRef.current = null;
-    };
+      
+      // Notify parent about connection failure
+      onWsEventRef.current?.({
+        type: "error",
+        event: "error",
+        message: error?.message || "Failed to create WebSocket connection",
+      });
+    }
   }, [wsUrl]);
 
   // Tự động kết nối khi autoConnect=true
