@@ -1,11 +1,24 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Audio } from "expo-av";
+// Sử dụng legacy API vì expo-file-system v54 đã deprecate readAsStringAsync
+import * as FileSystem from "expo-file-system/legacy";
 
 interface UseAudioRecorderProps {
   wsUrl: string; // WebSocket URL: wss://.../ws/stt?defense_session_id=XXX&role=member
   onWsEvent?: (msg: any) => void; // Event handler từ WebSocket
   autoConnect?: boolean; // Tự động kết nối WS khi load
 }
+
+// Helper: Convert base64 to Uint8Array
+const base64ToUint8Array = (base64: string): Uint8Array => {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+};
 
 export const useAudioRecorder = ({
   wsUrl,
@@ -19,6 +32,9 @@ export const useAudioRecorder = ({
   const recordingRef = useRef<Audio.Recording | null>(null);
   const onWsEventRef = useRef(onWsEvent);
   const isConnectingRef = useRef(false);
+  const streamingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSentBytesRef = useRef<number>(0); // Track bytes đã gửi để chỉ gửi phần mới
+  const audioBufferRef = useRef<Uint8Array>(new Uint8Array(0)); // Buffer tích lũy audio
 
   useEffect(() => {
     onWsEventRef.current = onWsEvent;
@@ -51,7 +67,7 @@ export const useAudioRecorder = ({
     }
 
     isConnectingRef.current = true;
-    
+
     try {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
@@ -75,7 +91,7 @@ export const useAudioRecorder = ({
           // Handle non-JSON messages
           console.log("WS raw message:", evt.data);
           // Try to pass raw message if it's a string
-          if (typeof evt.data === 'string') {
+          if (typeof evt.data === "string") {
             onWsEventRef.current?.({
               type: "message",
               data: evt.data,
@@ -89,7 +105,7 @@ export const useAudioRecorder = ({
         // Extract error information safely to avoid serialization issues
         let errorMessage = "Unknown WebSocket error";
         try {
-          if (e && typeof e === 'object') {
+          if (e && typeof e === "object") {
             errorMessage = (e as any)?.message || (e as any)?.type || String(e);
           } else if (e) {
             errorMessage = String(e);
@@ -98,11 +114,11 @@ export const useAudioRecorder = ({
           // If we can't extract error info, use default message
           errorMessage = "WebSocket connection error";
         }
-        
+
         console.error("❌ WebSocket error:", errorMessage);
         setWsConnected(false);
         isConnectingRef.current = false;
-        
+
         // Notify parent component about the error (with safe serialization)
         try {
           onWsEventRef.current?.({
@@ -121,7 +137,7 @@ export const useAudioRecorder = ({
         setWsConnected(false);
         isConnectingRef.current = false;
         wsRef.current = null;
-        
+
         // Notify parent about close event
         onWsEventRef.current?.({
           type: "closed",
@@ -135,7 +151,7 @@ export const useAudioRecorder = ({
       setWsConnected(false);
       isConnectingRef.current = false;
       wsRef.current = null;
-      
+
       // Notify parent about connection failure
       onWsEventRef.current?.({
         type: "error",
@@ -158,6 +174,12 @@ export const useAudioRecorder = ({
   // Cleanup khi unmount
   useEffect(() => {
     return () => {
+      // Clear streaming interval
+      if (streamingIntervalRef.current) {
+        clearInterval(streamingIntervalRef.current);
+        streamingIntervalRef.current = null;
+      }
+
       if (wsRef.current) {
         try {
           wsRef.current.close();
@@ -231,16 +253,76 @@ export const useAudioRecorder = ({
       const { recording } = await Audio.Recording.createAsync(recordingOptions);
       recordingRef.current = recording;
 
-      // Monitor recording status và gửi audio chunks qua WebSocket
-      recording.setOnRecordingStatusUpdate(async (status) => {
-        if (status.isRecording && status.durationMillis) {
-          // Lấy audio data từ recording (cần implement audio streaming)
-          // Tạm thời: gửi khi recording dừng
+      // Reset tracking variables for streaming
+      lastSentBytesRef.current = 0;
+      audioBufferRef.current = new Uint8Array(0);
+
+      // Start streaming audio chunks every 300ms
+      // Approach: đọc toàn bộ file, so sánh với buffer đã gửi, chỉ gửi phần mới
+      streamingIntervalRef.current = setInterval(async () => {
+        if (
+          !recordingRef.current ||
+          !wsRef.current ||
+          wsRef.current.readyState !== WebSocket.OPEN
+        ) {
+          return;
         }
-      });
+
+        try {
+          const uri = recordingRef.current.getURI();
+          if (!uri) return;
+
+          // Đọc toàn bộ file audio hiện tại (legacy API dùng EncodingType.Base64)
+          const base64Data = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+
+          if (!base64Data) return;
+
+          // Convert base64 sang bytes
+          const currentAudioBytes = base64ToUint8Array(base64Data);
+          const currentLength = currentAudioBytes.length;
+
+          // Chỉ gửi phần audio MỚI (chưa gửi)
+          if (currentLength > lastSentBytesRef.current) {
+            // Lấy phần mới từ vị trí đã gửi cuối đến hiện tại
+            const newAudioChunk = currentAudioBytes.slice(
+              lastSentBytesRef.current
+            );
+
+            // Chỉ gửi nếu có ít nhất 640 bytes (20ms audio @ 16kHz mono 16bit)
+            if (newAudioChunk.length >= 640) {
+              if (
+                wsRef.current &&
+                wsRef.current.readyState === WebSocket.OPEN
+              ) {
+                // Gửi từng chunk nhỏ 640 bytes (giống như web gửi 320 samples * 2 bytes)
+                const CHUNK_SIZE = 640;
+                for (let i = 0; i < newAudioChunk.length; i += CHUNK_SIZE) {
+                  const chunk = newAudioChunk.slice(
+                    i,
+                    Math.min(i + CHUNK_SIZE, newAudioChunk.length)
+                  );
+                  if (chunk.length >= CHUNK_SIZE) {
+                    wsRef.current.send(chunk.buffer);
+                  }
+                }
+
+                console.log(
+                  `📤 Sent ${newAudioChunk.length} bytes (from ${lastSentBytesRef.current} to ${currentLength})`
+                );
+                lastSentBytesRef.current = currentLength;
+              }
+            }
+          }
+        } catch (err) {
+          // Ignore read errors during streaming
+          console.warn("Audio streaming error:", err);
+        }
+      }, 300);
 
       setIsRecording(true);
-      console.log("🎤 Recording started");
+      console.log("🎤 Recording started with audio streaming");
     } catch (error: any) {
       console.error("❌ Failed to start recording:", error);
       throw error;
@@ -249,10 +331,58 @@ export const useAudioRecorder = ({
 
   const stopRecording = useCallback(async () => {
     try {
+      // Stop streaming interval first
+      if (streamingIntervalRef.current) {
+        clearInterval(streamingIntervalRef.current);
+        streamingIntervalRef.current = null;
+      }
+
       if (recordingRef.current) {
+        // Get final audio data before stopping
+        const uri = recordingRef.current.getURI();
+
         await recordingRef.current.stopAndUnloadAsync();
+
+        // Send remaining audio data (phần cuối chưa gửi)
+        if (
+          uri &&
+          wsRef.current &&
+          wsRef.current.readyState === WebSocket.OPEN
+        ) {
+          try {
+            const base64Data = await FileSystem.readAsStringAsync(uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+
+            if (base64Data) {
+              const currentAudioBytes = base64ToUint8Array(base64Data);
+              const currentLength = currentAudioBytes.length;
+
+              // Chỉ gửi phần chưa gửi
+              if (currentLength > lastSentBytesRef.current) {
+                const remainingChunk = currentAudioBytes.slice(
+                  lastSentBytesRef.current
+                );
+                if (remainingChunk.length > 0) {
+                  wsRef.current.send(remainingChunk.buffer);
+                  console.log(
+                    `📤 Sent final audio chunk: ${remainingChunk.length} bytes`
+                  );
+                }
+              }
+            }
+          } catch (err) {
+            console.warn("Error sending final audio chunk:", err);
+          }
+        }
+
         recordingRef.current = null;
       }
+
+      // Reset tracking variables
+      lastSentBytesRef.current = 0;
+      audioBufferRef.current = new Uint8Array(0);
+
       setIsRecording(false);
       console.log("🛑 Recording stopped (WebSocket still open)");
     } catch (error) {
@@ -317,13 +447,39 @@ export const useAudioRecorder = ({
     }
   }, []);
 
+  // Broadcast session start (for secretary)
+  const broadcastSessionStart = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send("session:start");
+      console.log("📢 Sent session:start");
+    }
+  }, []);
+
+  // Broadcast session end (for secretary)
+  const broadcastSessionEnd = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send("session:end");
+      console.log("📢 Sent session:end");
+    }
+  }, []);
+
+  // Broadcast mic disabled (for secretary to disable all mics)
+  const broadcastMicDisabled = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send("mic:disabled");
+      console.log("📢 Sent mic:disabled");
+    }
+  }, []);
+
   // Broadcast speaker started
   const broadcastSpeakerStarted = useCallback((userId: string) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: "speaker:started",
-        userId: userId,
-      }));
+      wsRef.current.send(
+        JSON.stringify({
+          type: "speaker:started",
+          userId: userId,
+        })
+      );
       console.log("📢 Sent speaker:started for userId:", userId);
     }
   }, []);
@@ -331,10 +487,12 @@ export const useAudioRecorder = ({
   // Broadcast speaker stopped
   const broadcastSpeakerStopped = useCallback((userId: string) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: "speaker:stopped",
-        userId: userId,
-      }));
+      wsRef.current.send(
+        JSON.stringify({
+          type: "speaker:stopped",
+          userId: userId,
+        })
+      );
       console.log("📢 Sent speaker:stopped for userId:", userId);
     }
   }, []);
@@ -347,10 +505,12 @@ export const useAudioRecorder = ({
     stopRecording,
     toggleAsk,
     stopSession,
+    broadcastSessionStart,
+    broadcastSessionEnd,
     broadcastQuestionStarted,
     broadcastQuestionProcessing,
+    broadcastMicDisabled,
     broadcastSpeakerStarted,
     broadcastSpeakerStopped,
   };
 };
-

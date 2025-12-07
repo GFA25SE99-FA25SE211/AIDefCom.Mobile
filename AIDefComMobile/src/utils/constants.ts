@@ -8,7 +8,7 @@ export const API_CONFIG = {
 // Voice authentication service
 export const VOICE_AUTH_CONFIG = {
   BASE_URL:
-    "https://fastapi-service.happyforest-7c6ec975.southeastasia.azurecontainerapps.io",
+    "https://ai-service.thankfultree-4b6bfec6.southeastasia.azurecontainerapps.io",
   REGISTRATION_PATH: (userId: string) => `/voice/users/${userId}/enroll`,
   AUTH_PATH: (userId: string) => `/voice/users/${userId}/verify`,
   REQUIRED_SAMPLES: 3, // Registration requires 3 samples
@@ -21,29 +21,29 @@ export const VOICE_AUTH_CONFIG = {
 
 // Response Codes từ API
 export const RESPONSE_CODES = {
-  SUCCESS: '200',
-  CREATED: '201',
-  BAD_REQUEST: '400',
-  UNAUTHORIZED: '401',
-  NOT_FOUND: '404',
-  INTERNAL_ERROR: '500',
+  SUCCESS: "200",
+  CREATED: "201",
+  BAD_REQUEST: "400",
+  UNAUTHORIZED: "401",
+  NOT_FOUND: "404",
+  INTERNAL_ERROR: "500",
 };
 
 // Role constants
 export const USER_ROLES = {
-  STUDENT: 'Student',
-  LECTURER: 'Lecturer',
-  ADMINISTRATOR: 'Administrator',
-  CHAIR: 'Chair',
-  SECRETARY: 'Secretary',
-  MEMBER: 'Member',
-  MODERATOR: 'Moderator',
+  STUDENT: "Student",
+  LECTURER: "Lecturer",
+  ADMINISTRATOR: "Administrator",
+  CHAIR: "Chair",
+  SECRETARY: "Secretary",
+  MEMBER: "Member",
+  MODERATOR: "Moderator",
 };
 
 // Storage Keys
 export const STORAGE_KEYS = {
-  ACCESS_TOKEN: 'accessToken',
-  REFRESH_TOKEN: 'refreshToken',
-  USER_ID: 'userId',
-  USER_DATA: 'user',
+  ACCESS_TOKEN: "accessToken",
+  REFRESH_TOKEN: "refreshToken",
+  USER_ID: "userId",
+  USER_DATA: "user",
 };
