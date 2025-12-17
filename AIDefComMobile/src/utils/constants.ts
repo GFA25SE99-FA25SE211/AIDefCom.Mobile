@@ -13,9 +13,9 @@ export const VOICE_AUTH_CONFIG = {
   AUTH_PATH: (userId: string) => `/voice/users/${userId}/verify`,
   REQUIRED_SAMPLES: 3, // Registration requires 3 samples
   PROMPTS: [
-    "Xin chào, tôi là {Tên người nói}. Đây là đoạn thu mẫu để hỗ trợ hệ thống AIDefCom, một nền tảng AI được thiết kế giúp số hóa và tối ưu hóa toàn bộ quy trình chấm điểm và ghi biên bản bảo vệ khóa luận. Hệ thống sử dụng giọng nói của tôi để cải thiện khả năng tương tác và hỗ trợ hội đồng trong các phiên bảo vệ sau này.",
-    "Tôi đang thu âm đoạn mẫu để AIDefCom xây dựng hồ sơ nhận diện giọng nói của tôi. Trong khoảng thời gian này, tôi sẽ nói với tốc độ ổn định và phát âm rõ ràng để hệ thống thu thập dữ liệu chất lượng cao. Các bản thu giúp AI nhận dạng chính xác hơn khi tôi đặt câu hỏi, ghi chú hoặc thực hiện các thao tác khác trong buổi bảo vệ.",
-    "Đây là bản thu mẫu cho AIDefCom theo đúng yêu cầu về bảo mật và quyền riêng tư. Tôi xác nhận rằng giọng nói của tôi được sử dụng phục vụ cho mục đích học thuật và sẽ được lưu trữ, mã hóa và xử lý theo các chính sách bảo vệ dữ liệu tương tự chuẩn GDPR. Tôi đồng ý cung cấp dữ liệu để hệ thống nhận diện thuận tiện và an toàn hơn.",
+    "Hello, I am {Speaker Name}. This is a sample recording to support the AIDefCom system, an AI platform designed to digitize and optimize the entire scoring process and defense session record-keeping. The system uses my voice to improve interaction capabilities and assist the committee in future defense sessions.",
+    "I am recording this sample for AIDefCom to build my voice recognition profile. During this time, I will speak at a steady pace and pronounce clearly so the system can collect high-quality data. These recordings help the AI recognize more accurately when I ask questions, take notes, or perform other operations during defense sessions.",
+    "This is a sample recording for AIDefCom according to security and privacy requirements. I confirm that my voice is used for academic purposes and will be stored, encrypted, and processed according to GDPR-like data protection policies. I agree to provide data to make the system more convenient and secure for recognition.",
   ],
 };
 

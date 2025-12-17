@@ -55,7 +55,7 @@ export const AudioTestScreen = () => {
               color="white"
             />
             <Text style={styles.buttonText}>
-              {isNativeActive ? "Dừng Native" : "Bắt đầu Native"}
+              {isNativeActive ? "Stop Native" : "Start Native"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -92,7 +92,7 @@ export const AudioTestScreen = () => {
               color="white"
             />
             <Text style={styles.buttonText}>
-              {isSoundLevelActive ? "Dừng Simple" : "Bắt đầu Simple"}
+              {isSoundLevelActive ? "Stop Simple" : "Start Simple"}
             </Text>
           </TouchableOpacity>
         </View>

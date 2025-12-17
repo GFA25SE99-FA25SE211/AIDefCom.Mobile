@@ -27,7 +27,12 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 const RECORDING_DURATION = 15; // 15 seconds per sample
 const SAMPLE_RATE = 16000;
 
-type SampleStatus = "pending" | "recording" | "processing" | "completed" | "failed";
+type SampleStatus =
+  | "pending"
+  | "recording"
+  | "processing"
+  | "completed"
+  | "failed";
 
 interface SampleInfo {
   status: SampleStatus;
@@ -43,7 +48,9 @@ export const VoiceRegistrationScreen = () => {
   const [currentSampleIndex, setCurrentSampleIndex] = useState(0);
   const [samples, setSamples] = useState<SampleInfo[]>([]);
   const [countdown, setCountdown] = useState(RECORDING_DURATION);
-  const [statusMessage, setStatusMessage] = useState("Nhấn nút để bắt đầu ghi âm sample 1");
+  const [statusMessage, setStatusMessage] = useState(
+    "Press button to start recording sample 1"
+  );
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const progressAnimation = useRef(new Animated.Value(0)).current;
@@ -78,7 +85,8 @@ export const VoiceRegistrationScreen = () => {
         ]);
 
         const enrollmentCount = status.enrollment_count ?? 0;
-        const minRequired = status.min_required ?? VOICE_AUTH_CONFIG.REQUIRED_SAMPLES;
+        const minRequired =
+          status.min_required ?? VOICE_AUTH_CONFIG.REQUIRED_SAMPLES;
         const isComplete =
           status.is_complete ||
           status.enrollment_status === "enrolled" ||
@@ -91,11 +99,11 @@ export const VoiceRegistrationScreen = () => {
         }
 
         // Not yet complete → keep on registration screen
-        setStatusMessage("Nhấn nút để bắt đầu ghi âm sample 1");
+        setStatusMessage("Press button to start recording sample 1");
       } catch (error: any) {
         console.error("Failed to check enrollment status:", error);
         // Fail fast - just continue with registration
-        setStatusMessage("Nhấn nút để bắt đầu ghi âm sample 1");
+        setStatusMessage("Press button to start recording sample 1");
       }
     };
 
@@ -119,7 +127,9 @@ export const VoiceRegistrationScreen = () => {
 
   // Update progress animation
   useEffect(() => {
-    const completedCount = samples.filter((s) => s.status === "completed").length;
+    const completedCount = samples.filter(
+      (s) => s.status === "completed"
+    ).length;
     Animated.timing(progressAnimation, {
       toValue: completedCount / totalSamples,
       duration: 300,
@@ -128,7 +138,8 @@ export const VoiceRegistrationScreen = () => {
   }, [samples, totalSamples]);
 
   const getPromptForIndex = (index: number) => {
-    const raw = prompts[Math.min(index, prompts.length - 1)] || prompts[0] || "";
+    const raw =
+      prompts[Math.min(index, prompts.length - 1)] || prompts[0] || "";
     const emailName =
       user?.email && user.email.includes("@")
         ? user.email.split("@")[0]
@@ -165,39 +176,36 @@ export const VoiceRegistrationScreen = () => {
       });
 
       if (!permission.granted) {
-        let message = "Quyền truy cập microphone bị từ chối.";
+        let message = "Microphone access permission denied.";
         let showSettingsButton = false;
 
         if (Platform.OS === "ios") {
           if (!permission.canAskAgain) {
-            message += "\n\nVui lòng vào Settings → AIDefComMobile → Microphone để bật quyền.";
+            message +=
+              "\n\nPlease go to Settings → AIDefComMobile → Microphone to enable permission.";
             showSettingsButton = true;
           } else {
-            message += "\n\nVui lòng cấp quyền microphone để tiếp tục.";
+            message += "\n\nPlease grant microphone permission to continue.";
           }
         }
 
-        Alert.alert(
-          "Quyền truy cập microphone bị từ chối",
-          message,
-          [
-            { text: "Hủy", style: "cancel" },
-            ...(showSettingsButton
-              ? [
-                  {
-                    text: "Mở Settings",
-                    onPress: async () => {
-                      try {
-                        await Linking.openSettings();
-                      } catch (error) {
-                        console.error("Error opening settings:", error);
-                      }
-                    },
+        Alert.alert("Microphone access permission denied", message, [
+          { text: "Cancel", style: "cancel" },
+          ...(showSettingsButton
+            ? [
+                {
+                  text: "Open Settings",
+                  onPress: async () => {
+                    try {
+                      await Linking.openSettings();
+                    } catch (error) {
+                      console.error("Error opening settings:", error);
+                    }
                   },
-                ]
-              : []),
-          ]
-        );
+                },
+              ]
+            : []),
+        ]);
         return;
       }
 
@@ -212,7 +220,7 @@ export const VoiceRegistrationScreen = () => {
         playThroughEarpieceAndroid: false,
       });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       console.log("🔧 Audio mode configured");
 
       // Recording options
@@ -247,24 +255,24 @@ export const VoiceRegistrationScreen = () => {
         recordingOptions
       );
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       const status = await newRecording.getStatusAsync();
       console.log("📊 Initial status:", status);
 
       if (!status.isRecording) {
-        throw new Error("Recording không khởi động được. Vui lòng kiểm tra microphone.");
+        throw new Error("Recording could not start. Please check microphone.");
       }
 
       if (!status.canRecord) {
-        throw new Error("Microphone không sẵn sàng để ghi âm.");
+        throw new Error("Microphone is not ready for recording.");
       }
 
       setRecording(newRecording);
       recordingRef.current = newRecording; // Lưu vào ref để dùng trong countdown
       setIsRecording(true);
       setCountdown(RECORDING_DURATION);
-      setStatusMessage(`Đang ghi âm sample ${currentSampleIndex + 1}...`);
+      setStatusMessage(`Recording sample ${currentSampleIndex + 1}...`);
 
       // Update sample status
       setSamples((prev) => {
@@ -318,7 +326,7 @@ export const VoiceRegistrationScreen = () => {
       });
     } catch (error: any) {
       console.error("❌ Failed to start recording:", error);
-      Alert.alert("Lỗi", error.message || "Không thể bắt đầu ghi âm");
+      Alert.alert("Error", error.message || "Cannot start recording");
       resetRecording();
     }
   };
@@ -326,7 +334,7 @@ export const VoiceRegistrationScreen = () => {
   const stopRecording = async () => {
     // Lấy recording từ ref hoặc state
     const currentRecording = recordingRef.current || recording;
-    
+
     // Nếu không có recording và không đang recording, return
     if (!currentRecording && !isRecording) {
       console.log("⚠️ stopRecording called but no recording");
@@ -348,7 +356,9 @@ export const VoiceRegistrationScreen = () => {
 
       setIsRecording(false);
       setCountdown(0); // Set countdown về 0 để UI update
-      setStatusMessage(`Đang tải sample ${currentSampleIndex + 1} lên server...`);
+      setStatusMessage(
+        `Uploading sample ${currentSampleIndex + 1} to server...`
+      );
 
       // Update sample status to processing
       setSamples((prev) => {
@@ -388,7 +398,7 @@ export const VoiceRegistrationScreen = () => {
       console.log("🎵 Recording URI:", uri);
 
       if (!uri) {
-        throw new Error("Không tìm thấy file ghi âm");
+        throw new Error("Recording file not found");
       }
 
       // Validate duration
@@ -397,12 +407,14 @@ export const VoiceRegistrationScreen = () => {
         : 0;
 
       if (durationSeconds === 0) {
-        throw new Error("Recording không thu được âm thanh. Vui lòng thử lại.");
+        throw new Error("Recording did not capture audio. Please try again.");
       }
 
       if (durationSeconds < 10) {
         throw new Error(
-          `Recording quá ngắn (${durationSeconds.toFixed(1)}s). Vui lòng ghi ít nhất 10 giây.`
+          `Recording too short (${durationSeconds.toFixed(
+            1
+          )}s). Please record at least 10 seconds.`
         );
       }
 
@@ -425,8 +437,7 @@ export const VoiceRegistrationScreen = () => {
       const enrollmentCount = Number(
         response.enrollment_count ?? response.enrollmentCount ?? 0
       );
-      const isComplete =
-        response.is_complete ?? response.completed ?? false;
+      const isComplete = response.is_complete ?? response.completed ?? false;
       const minRequired = Number(response.min_required ?? 3);
 
       console.log("📊 Enrollment response:", {
@@ -450,7 +461,7 @@ export const VoiceRegistrationScreen = () => {
         return updated;
       });
 
-      setStatusMessage(`Sample ${currentSampleIndex + 1} đã lưu thành công.`);
+      setStatusMessage(`Sample ${currentSampleIndex + 1} saved successfully.`);
       resetRecording();
       Toast.show({
         type: "success",
@@ -460,11 +471,11 @@ export const VoiceRegistrationScreen = () => {
       });
 
       if (isComplete && enrollmentCount >= minRequired) {
-        setStatusMessage("Hoàn tất đăng ký giọng nói!");
+        setStatusMessage("Voice registration completed!");
         Toast.show({
           type: "success",
           position: "top",
-          text1: "Đăng ký giọng nói thành công",
+          text1: "Voice registration successful",
           text2: `Đã đăng ký ${enrollmentCount} mẫu giọng nói. Chuyển đến trang chủ...`,
         });
         setTimeout(() => {
@@ -478,14 +489,14 @@ export const VoiceRegistrationScreen = () => {
       }
     } catch (error: any) {
       console.error("❌ Failed to stop/upload recording:", error);
-      
+
       // Check if error is "Maximum enrollment limit reached" - user already has 3 samples
       const errorMessage = error.message || "";
-      const isMaxEnrollmentReached = 
+      const isMaxEnrollmentReached =
         errorMessage.includes("Maximum enrollment limit") ||
         errorMessage.includes("Đã đủ 3 samples") ||
         errorMessage.includes("Đã đủ 3 mẫu");
-      
+
       if (isMaxEnrollmentReached) {
         // User already has 3 samples - redirect to VoiceAuth (verify)
         console.log("✅ User already has 3 samples - redirecting to VoiceAuth");
@@ -503,7 +514,7 @@ export const VoiceRegistrationScreen = () => {
         return;
       }
 
-      setStatusMessage(error.message || "Tải lên thất bại. Vui lòng thử lại.");
+      setStatusMessage(error.message || "Upload failed. Please try again.");
 
       // Mark sample as failed
       setSamples((prev) => {
@@ -519,7 +530,7 @@ export const VoiceRegistrationScreen = () => {
         type: "error",
         position: "top",
         text1: "Đăng ký thất bại",
-        text2: error.message || "Vui lòng thử lại",
+        text2: error.message || "Please try again",
       });
 
       resetRecording();
@@ -905,4 +916,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

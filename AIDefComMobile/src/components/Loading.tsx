@@ -5,7 +5,7 @@ interface LoadingProps {
   message?: string;
 }
 
-export const Loading = ({ message = "Đang tải..." }: LoadingProps) => {
+export const Loading = ({ message = "Loading..." }: LoadingProps) => {
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color="#FF6B35" />

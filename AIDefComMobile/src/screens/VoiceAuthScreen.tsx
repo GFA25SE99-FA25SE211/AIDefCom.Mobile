@@ -23,10 +23,15 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const RECORDING_DURATION = 15; 
+const RECORDING_DURATION = 15;
 const SAMPLE_RATE = 16000;
 
-type SampleStatus = "pending" | "recording" | "processing" | "verified" | "failed";
+type SampleStatus =
+  | "pending"
+  | "recording"
+  | "processing"
+  | "verified"
+  | "failed";
 
 interface SampleInfo {
   status: SampleStatus;
@@ -44,7 +49,9 @@ export const VoiceAuthScreen = () => {
   const [currentSampleIndex, setCurrentSampleIndex] = useState(0);
   const [samples, setSamples] = useState<SampleInfo[]>([]);
   const [countdown, setCountdown] = useState(RECORDING_DURATION);
-  const [statusMessage, setStatusMessage] = useState("Tap the microphone and speak naturally");
+  const [statusMessage, setStatusMessage] = useState(
+    "Tap the microphone and speak naturally"
+  );
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const progressAnimation = useRef(new Animated.Value(0)).current;
@@ -78,8 +85,12 @@ export const VoiceAuthScreen = () => {
   }, [user, navigation, totalSamples]);
 
   const getPromptForIndex = (index: number) => {
-    const raw = prompts[Math.min(index, prompts.length - 1)] || prompts[0] || "";
-    const emailName = user?.email && user.email.includes("@") ? user.email.split("@")[0] : undefined;
+    const raw =
+      prompts[Math.min(index, prompts.length - 1)] || prompts[0] || "";
+    const emailName =
+      user?.email && user.email.includes("@")
+        ? user.email.split("@")[0]
+        : undefined;
     const displayName = user?.fullName || emailName || "tôi";
     return raw.replace("{Tên người nói}", displayName);
   };
@@ -105,7 +116,7 @@ export const VoiceAuthScreen = () => {
         playThroughEarpieceAndroid: false,
       });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Use same recording options as registration to ensure WAV format compatibility
       const recordingOptions = {
@@ -144,7 +155,10 @@ export const VoiceAuthScreen = () => {
       // Update sample status
       setSamples((prev) => {
         const updated = [...prev];
-        updated[currentSampleIndex] = { ...updated[currentSampleIndex], status: "recording" };
+        updated[currentSampleIndex] = {
+          ...updated[currentSampleIndex],
+          status: "recording",
+        };
         return updated;
       });
 
@@ -186,7 +200,10 @@ export const VoiceAuthScreen = () => {
     // Update sample status
     setSamples((prev) => {
       const updated = [...prev];
-      updated[currentSampleIndex] = { ...updated[currentSampleIndex], status: "processing" };
+      updated[currentSampleIndex] = {
+        ...updated[currentSampleIndex],
+        status: "processing",
+      };
       return updated;
     });
 
@@ -199,7 +216,7 @@ export const VoiceAuthScreen = () => {
       }
 
       if (!user?.id) {
-        throw new Error("Không tìm thấy thông tin người dùng");
+        throw new Error("User information not found");
       }
 
       const result = await voiceService.verifyVoiceSample(uri, user.id, token);
@@ -235,7 +252,8 @@ export const VoiceAuthScreen = () => {
         // Check if error is due to insufficient enrollment samples
         const errorMessage = result.message || "";
         const needsMoreSamples =
-          (errorMessage.includes("needs") && errorMessage.includes("more samples")) ||
+          (errorMessage.includes("needs") &&
+            errorMessage.includes("more samples")) ||
           errorMessage.includes("not enrolled") ||
           errorMessage.includes("complete enrollment");
 
@@ -243,33 +261,43 @@ export const VoiceAuthScreen = () => {
           // User doesn't have enough samples → redirect to registration
           Toast.show({
             type: "error",
-            text1: "Chưa đủ mẫu giọng nói",
-            text2: `Vui lòng hoàn tất đăng ký 3 mẫu giọng nói trước`,
+            text1: "Insufficient voice samples",
+            text2: `Please complete registration of 3 voice samples first`,
           });
           setTimeout(() => {
             navigation.replace("VoiceRegistration");
           }, 1500);
         } else {
           // Verification failed (voice not matched)
-          setStatusMessage(result.message || "Voice not recognized. Please try again.");
+          setStatusMessage(
+            result.message || "Voice not recognized. Please try again."
+          );
           setSamples((prev) => {
             const updated = [...prev];
-            updated[currentSampleIndex] = { ...updated[currentSampleIndex], status: "failed" };
+            updated[currentSampleIndex] = {
+              ...updated[currentSampleIndex],
+              status: "failed",
+            };
             return updated;
           });
           Toast.show({
             type: "error",
-            text1: "Xác thực thất bại",
-            text2: result.message || "Giọng nói không khớp. Vui lòng thử lại.",
+            text1: "Authentication failed",
+            text2: result.message || "Voice does not match. Please try again.",
           });
         }
       }
     } catch (error: any) {
       console.error("Voice verification failed", error);
-      setStatusMessage(error.message || "Voice verification failed. Please try again.");
+      setStatusMessage(
+        error.message || "Voice verification failed. Please try again."
+      );
       setSamples((prev) => {
         const updated = [...prev];
-        updated[currentSampleIndex] = { ...updated[currentSampleIndex], status: "failed" };
+        updated[currentSampleIndex] = {
+          ...updated[currentSampleIndex],
+          status: "failed",
+        };
         return updated;
       });
       Toast.show({
@@ -288,7 +316,9 @@ export const VoiceAuthScreen = () => {
     if (isRecording) {
       stopRecording();
     } else {
-      const nextIndex = samples.findIndex((s) => s.status === "pending" || s.status === "failed");
+      const nextIndex = samples.findIndex(
+        (s) => s.status === "pending" || s.status === "failed"
+      );
       if (nextIndex >= 0) {
         setCurrentSampleIndex(nextIndex);
         startRecording();
@@ -365,7 +395,10 @@ export const VoiceAuthScreen = () => {
             ]}
             onPress={handleMicrophonePress}
             activeOpacity={0.85}
-            disabled={samples[currentSampleIndex]?.status === "processing" || samples[currentSampleIndex]?.status === "verified"}
+            disabled={
+              samples[currentSampleIndex]?.status === "processing" ||
+              samples[currentSampleIndex]?.status === "verified"
+            }
           >
             <LinearGradient
               colors={
@@ -413,11 +446,15 @@ export const VoiceAuthScreen = () => {
           </View>
           <View style={styles.tipItem}>
             <Text style={styles.tipBullet}>•</Text>
-            <Text style={styles.tipText}>Hold the device close to your mouth</Text>
+            <Text style={styles.tipText}>
+              Hold the device close to your mouth
+            </Text>
           </View>
           <View style={styles.tipItem}>
             <Text style={styles.tipBullet}>•</Text>
-            <Text style={styles.tipText}>Say a few words naturally when prompted</Text>
+            <Text style={styles.tipText}>
+              Say a few words naturally when prompted
+            </Text>
           </View>
         </View>
       </ScrollView>

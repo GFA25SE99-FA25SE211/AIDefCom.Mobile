@@ -90,7 +90,7 @@ const handleResponse = async (response: Response, fallbackMessage: string) => {
       const errorMsg = json.error || json.message || "";
       if (
         errorMsg.includes("Maximum enrollment limit") ||
-        errorMsg.includes("Đã đủ 3 samples") ||
+        errorMsg.includes("Already have 3 samples") ||
         (json.enrollment_count >= 3 && json.completed === true)
       ) {
         console.log("✅ User already has 3 samples - treating as success", json);
@@ -103,7 +103,7 @@ const handleResponse = async (response: Response, fallbackMessage: string) => {
           min_required: json.min_required || 3,
           is_complete: true,
           completed: true,
-          message: json.message || "Đã đủ 3 mẫu giọng nói",
+          message: json.message || "Already have 3 voice samples",
         } as VoiceResponse;
       }
     }

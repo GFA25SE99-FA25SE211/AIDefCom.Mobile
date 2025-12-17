@@ -66,7 +66,7 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
       console.error("❌ WebSocket error event:", msg.message || msg);
       Toast.show({
         type: "error",
-        text1: "Lỗi kết nối",
+        text1: "Connection Error",
         text2: msg.message || "Không thể kết nối đến server. Vui lòng thử lại.",
       });
       setSessionStarted(false);
@@ -278,13 +278,13 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
         setCurrentSpeaker(null);
       } catch (error: any) {
         console.error("Error stopping recording:", error);
-        Alert.alert("Lỗi", "Không thể dừng ghi âm");
+        Alert.alert("Error", "Cannot stop recording");
       }
     } else {
       if (!sessionStarted) {
         Alert.alert(
-          "Chưa bắt đầu phiên",
-          "Vui lòng chờ thư ký bắt đầu phiên bảo vệ"
+          "Session Not Started",
+          "Please wait for the secretary to start the defense session"
         );
         return;
       }
@@ -293,10 +293,10 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
       if (currentSpeaker && currentSpeaker !== user?.id) {
         const speakerName =
           users.find((u) => (u.id || u.userId || u.Id) === currentSpeaker)
-            ?.fullName || "Một thành viên";
+            ?.fullName || "A member";
         Alert.alert(
-          "Đang có người nói",
-          `${speakerName} đang nói. Vui lòng chờ đến lượt của bạn.`
+          "Someone is speaking",
+          `${speakerName} is speaking. Please wait for your turn.`
         );
         return;
       }
@@ -305,8 +305,8 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
       if (!wsConnected) {
         console.warn("⚠️ WebSocket not connected, attempting to connect...");
         Alert.alert(
-          "Chưa kết nối",
-          "Đang kết nối WebSocket. Vui lòng thử lại sau."
+          "Not Connected",
+          "Connecting WebSocket. Please try again later."
         );
         return;
       }

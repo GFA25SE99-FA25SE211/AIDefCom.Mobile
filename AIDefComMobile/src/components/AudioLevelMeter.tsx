@@ -148,8 +148,8 @@ export const AudioLevelMeter: React.FC<AudioLevelMeterProps> = ({
       {/* Status */}
       <Text style={styles.statusText}>
         {isActive
-          ? `Đang đo âm thanh (${useNativeModule ? "Native" : "Sound Level"})`
-          : "Dừng đo âm thanh"}
+          ? `Measuring audio (${useNativeModule ? "Native" : "Sound Level"})`
+          : "Stop audio measurement"}
       </Text>
     </View>
   );

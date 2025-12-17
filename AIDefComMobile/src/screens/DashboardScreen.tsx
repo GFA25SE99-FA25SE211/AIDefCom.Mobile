@@ -28,9 +28,9 @@ export const DashboardScreen = () => {
   const [error, setError] = useState<string | null>(null);
 
   const handleLogout = () => {
-    Alert.alert("Đăng xuất", "Bạn có muốn đăng xuất khỏi ứng dụng?", [
-      { text: "Hủy", style: "cancel" },
-      { text: "Đăng xuất", onPress: logout, style: "destructive" },
+    Alert.alert("Logout", "Do you want to logout from the application?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Logout", onPress: logout, style: "destructive" },
     ]);
   };
 
@@ -39,7 +39,7 @@ export const DashboardScreen = () => {
       try {
         setIsLoading(true);
         setError(null);
-        
+
         // Phân biệt role để dùng đúng API:
         // - Student: /defense-sessions/student/{userId}
         // - Lecturer: /defense-sessions/lecturer/{userId}
@@ -69,7 +69,10 @@ export const DashboardScreen = () => {
                 projectCode: group.projectCode || group.ProjectCode,
               };
             } catch (err) {
-              console.warn(`Failed to load group data for ${session.groupId}:`, err);
+              console.warn(
+                `Failed to load group data for ${session.groupId}:`,
+                err
+              );
               return session;
             }
           })
@@ -188,7 +191,11 @@ export const DashboardScreen = () => {
                 <View style={styles.sessionDetailCard}>
                   <Text style={styles.detailLabel}>Project</Text>
                   <Text style={styles.detailValue}>
-                    {session.topicTitle_VN || session.TopicTitle_VN || session.topicTitle_EN || session.TopicTitle_EN || "No project title"}
+                    {session.topicTitle_VN ||
+                      session.TopicTitle_VN ||
+                      session.topicTitle_EN ||
+                      session.TopicTitle_EN ||
+                      "No project title"}
                   </Text>
                 </View>
 

@@ -43,12 +43,12 @@ export const LoginScreen = () => {
   const { login, loginWithGoogle, isLoading, user, token } = useAuth();
 
   // Phát hiện Expo Go: nếu executionEnvironment là 'storeClient' thì đang dùng Expo Go
-  const isExpoGo = Constants.executionEnvironment === 'storeClient';
-  
+  const isExpoGo = Constants.executionEnvironment === "storeClient";
+
   // Khi dùng Expo Go, phải dùng Web Client ID vì iOS Client ID không hỗ trợ exp:// redirect
   // Khi dùng development build hoặc production, dùng iOS Client ID
-  const shouldUseWebClient = isExpoGo && Platform.OS === 'ios';
-  
+  const shouldUseWebClient = isExpoGo && Platform.OS === "ios";
+
   const platformFallbackClientId =
     googleOAuthConfig.webClientId ||
     googleOAuthConfig.iosClientId ||
@@ -56,16 +56,16 @@ export const LoginScreen = () => {
     "placeholder-client-id";
 
   const scheme = Constants.expoConfig?.scheme || "aidefcommobile";
-  
+
   const googleAuthRequestConfig: Partial<GoogleAuthRequestConfig> = {
     // Nếu đang dùng Expo Go trên iOS, chỉ dùng Web Client ID
-    clientId: shouldUseWebClient 
-      ? (googleOAuthConfig.webClientId || platformFallbackClientId)
+    clientId: shouldUseWebClient
+      ? googleOAuthConfig.webClientId || platformFallbackClientId
       : platformFallbackClientId,
     // Chỉ set iOS Client ID khi KHÔNG phải Expo Go
-    iosClientId: shouldUseWebClient 
-      ? undefined 
-      : (googleOAuthConfig.iosClientId || platformFallbackClientId),
+    iosClientId: shouldUseWebClient
+      ? undefined
+      : googleOAuthConfig.iosClientId || platformFallbackClientId,
     androidClientId:
       googleOAuthConfig.androidClientId || platformFallbackClientId,
     webClientId: googleOAuthConfig.webClientId || platformFallbackClientId,
@@ -73,7 +73,7 @@ export const LoginScreen = () => {
     selectAccount: true,
     // Với Expo Go, set redirectUri rõ ràng để dùng Expo auth service proxy
     // Development build/production iOS sử dụng Google's iOS URL Scheme tự động
-    redirectUri: isExpoGo 
+    redirectUri: isExpoGo
       ? `https://auth.expo.io/@anonymous/aidefcommobile` // Expo Go dùng Expo auth service proxy - phải khớp với Google Cloud Console
       : Platform.select({
           ios: undefined, // iOS native build sử dụng Google's iOS URL Scheme tự động
@@ -91,7 +91,10 @@ export const LoginScreen = () => {
     console.log("isExpoGo:", isExpoGo);
     console.log("Platform.OS:", Platform.OS);
     console.log("shouldUseWebClient:", shouldUseWebClient);
-    console.log("googleAuthRequestConfig:", JSON.stringify(googleAuthRequestConfig, null, 2));
+    console.log(
+      "googleAuthRequestConfig:",
+      JSON.stringify(googleAuthRequestConfig, null, 2)
+    );
     console.log("===================================");
   }, [isExpoGo, shouldUseWebClient]);
 
@@ -159,18 +162,22 @@ export const LoginScreen = () => {
         const currentToken = token;
         if (currentUser?.id && currentToken) {
           // Always check voice enrollment for ALL roles
-          await navigateByEnrollmentStatus(currentUser.id, currentToken, navigation);
+          await navigateByEnrollmentStatus(
+            currentUser.id,
+            currentToken,
+            navigation
+          );
         } else {
           // Fallback: navigate to registration if user/token not available
           // This ensures voice registration is required
-      navigation.replace("VoiceRegistration");
+          navigation.replace("VoiceRegistration");
         }
       }, 300);
     } else {
       Toast.show({
         type: "error",
-        text1: "Đăng nhập thất bại",
-        text2: "Tài khoản hoặc mật khẩu không chính xác",
+        text1: "Login Failed",
+        text2: "Invalid email or password",
       });
     }
   };
@@ -182,7 +189,7 @@ export const LoginScreen = () => {
       Toast.show({
         type: "error",
         text1: "Google login",
-        text2: "Đăng nhập Google thất bại",
+        text2: "Google login failed",
       });
     } else {
       // After login, user and token are set in context
@@ -194,11 +201,15 @@ export const LoginScreen = () => {
         const currentToken = token;
         if (currentUser?.id && currentToken) {
           // Always check voice enrollment for ALL roles
-          await navigateByEnrollmentStatus(currentUser.id, currentToken, navigation);
+          await navigateByEnrollmentStatus(
+            currentUser.id,
+            currentToken,
+            navigation
+          );
         } else {
           // Fallback: navigate to registration if user/token not available
           // This ensures voice registration is required
-      navigation.replace("VoiceRegistration");
+          navigation.replace("VoiceRegistration");
         }
       }, 300);
     }
@@ -252,7 +263,7 @@ export const LoginScreen = () => {
   };
 
   if (isLoading) {
-    return <Loading message="Đang đăng nhập..." />;
+    return <Loading message="Logging in..." />;
   }
 
   const isSubmitting = isLoading || isGoogleLoading;
@@ -301,7 +312,7 @@ export const LoginScreen = () => {
             ) : (
               <>
                 <AntDesign name="google" size={20} color={colors.primary} />
-                <Text style={styles.googleButtonText}>Đăng nhập bằng Google</Text>
+                <Text style={styles.googleButtonText}>Sign in with Google</Text>
               </>
             )}
           </TouchableOpacity>
