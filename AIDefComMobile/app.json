@@ -4,7 +4,7 @@
     "slug": "AIDefComMobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/logo.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Ứng dụng cần truy cập microphone để ghi âm và hiển thị mức độ âm thanh trong quá trình đăng ký giọng nói.",
+        "NSMicrophoneUsageDescription": "This app needs access to microphone for voice recording and displaying audio levels during voice registration.",
         "LSApplicationQueriesSchemes": [
           "com.googleusercontent.apps.610663420023-dl82fv2cd71m1nqm5mivjq4mve19f2un"
         ]
@@ -24,7 +24,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -41,16 +41,19 @@
     "extra": {
       "googleWebClientId": "610663420023-dln5441dchtaue3abv4hiv9sak0f8v17.apps.googleusercontent.com",
       "googleIosClientId": "610663420023-dl82fv2cd71m1nqm5mivjq4mve19f2un.apps.googleusercontent.com",
-      "googleAndroidClientId": "610663420023-dln5441dchtaue3abv4hiv9sak0f8v17.apps.googleusercontent.com"
+      "googleAndroidClientId": "610663420023-dln5441dchtaue3abv4hiv9sak0f8v17.apps.googleusercontent.com",
+      "eas": {
+        "projectId": "2c439ff0-b047-441f-a41b-346f78c6abad"
+      }
     },
     "scheme": "aidefcommobile",
-    "packagerOpts": {
-      "config": "metro.config.js"
-    },
     "plugins": [
       "expo-dev-client",
       "expo-web-browser",
-      "./modules/audio-level-monitor/app.plugin.js"
+      "./modules/audio-level-monitor/app.plugin.js",
+      "expo-font",
+      "expo-asset",
+      "expo-audio"
     ]
   }
 }
