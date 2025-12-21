@@ -4,11 +4,6 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-/**
- * Check enrollment status and navigate to appropriate screen
- * - If enrolled (3 samples) → navigate to VoiceAuth
- * - If not enrolled → navigate to VoiceRegistration
- */
 export async function navigateByEnrollmentStatus(
   userId: string,
   token: string | null,
@@ -17,7 +12,6 @@ export async function navigateByEnrollmentStatus(
   try {
     console.log("🚀 Starting enrollment status check for navigation...");
     
-    // Call API directly (it already has timeout handling)
     const status = await voiceService.getEnrollmentStatus(userId, token);
 
     console.log("📋 Enrollment status result:", {
@@ -35,11 +29,9 @@ export async function navigateByEnrollmentStatus(
 
     if (isComplete) {
       console.log("✅ User is enrolled - navigating to VoiceAuth");
-      // User already enrolled → go to voice check/verification
       navigation.replace("VoiceAuth");
     } else {
       console.log("📝 User not enrolled - navigating to VoiceRegistration");
-      // User not enrolled → go to registration
       navigation.replace("VoiceRegistration");
     }
   } catch (error: any) {
@@ -47,7 +39,6 @@ export async function navigateByEnrollmentStatus(
       error: error.message,
       stack: error.stack,
     });
-    // On error, default to registration screen (fail fast)
     console.log("⚠️ Defaulting to VoiceRegistration due to error");
     navigation.replace("VoiceRegistration");
   }

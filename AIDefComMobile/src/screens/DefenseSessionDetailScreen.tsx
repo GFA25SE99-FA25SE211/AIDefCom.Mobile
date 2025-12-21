@@ -34,16 +34,14 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
 
   const [users, setUsers] = useState<DefenseSessionUser[]>([]);
   const [group, setGroup] = useState<Group | null>(null);
-  const [students, setStudents] = useState<any[]>([]); // Students với GroupRole
+  const [students, setStudents] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Mic và WebSocket states
   const [sessionStarted, setSessionStarted] = useState(false);
-  const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null); // userId của người đang nói
+  const [currentSpeaker, setCurrentSpeaker] = useState<string | null>(null);
   const mySessionIdRef = useRef<string | null>(null);
 
-  // Question mode states (giống member web)
   const [questionResults, setQuestionResults] = useState<any[]>([]);
   const [hasQuestionFinalText, setHasQuestionFinalText] = useState(false);
   const questionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -52,28 +50,25 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
   useEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      title: `Phiên bảo vệ nhóm ${session.groupId}`,
+      title: `Defense session group ${session.groupId}`,
     });
   }, [navigation, session.groupId]);
 
-  // WebSocket event handler
   const handleSTTEvent = (msg: any) => {
     const eventType = msg.type || msg.event;
     console.log("📨 WebSocket event received:", eventType, msg);
 
-    // Handle WebSocket errors gracefully
     if (eventType === "error") {
       console.error("❌ WebSocket error event:", msg.message || msg);
       Toast.show({
         type: "error",
         text1: "Connection Error",
-        text2: msg.message || "Không thể kết nối đến server. Vui lòng thử lại.",
+        text2: msg.message || "Cannot connect to server. Please try again.",
       });
       setSessionStarted(false);
       return;
     }
 
-    // Handle WebSocket close events
     if (eventType === "closed") {
       console.log("🔌 WebSocket closed:", msg.code, msg.reason);
       setSessionStarted(false);
@@ -92,8 +87,8 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
       setSessionStarted(true);
       Toast.show({
         type: "info",
-        text1: "Phiên bảo vệ đã bắt đầu",
-        text2: "Bạn có thể sử dụng mic",
+        text1: "Defense session has started",
+        text2: "You can use the microphone",
       });
     } else if (
       eventType === "session_ended" ||
@@ -102,7 +97,6 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
     ) {
       setSessionStarted(false);
       setCurrentSpeaker(null);
-      // Nếu đang recording, dừng lại
       if (isRecording) {
         stopRecording();
         if (user?.id) {
@@ -111,14 +105,13 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
       }
       Toast.show({
         type: "info",
-        text1: "Phiên bảo vệ đã kết thúc",
+        text1: "Defense session has ended",
       });
     } else if (
       eventType === "mic_disabled" ||
       eventType === "mic:disabled" ||
       eventType === "broadcast_mic_disabled"
     ) {
-      // Thư ký đã tắt mic - tự động tắt mic của student
       if (isRecording) {
         stopRecording();
         if (user?.id) {
@@ -127,8 +120,8 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
         setCurrentSpeaker(null);
         Toast.show({
           type: "info",
-          text1: "Mic đã bị tắt",
-          text2: "Thư ký đã tắt mic. Mic của bạn cũng đã bị tắt.",
+          text1: "Microphone has been turned off",
+          text2: "Secretary has turned off the microphone. Your microphone has also been turned off.",
         });
       }
     } else if (eventType === "connected") {
@@ -141,37 +134,32 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
       if (msg.session_id) {
         mySessionIdRef.current = msg.session_id;
       }
-      // Nếu đã có room_size > 0 và session đang active, có thể tự động enable
-      // Nhưng để an toàn, vẫn chờ session_started từ thư ký
     } else if (
       eventType === "session_started" ||
       eventType === "broadcast_session_started"
     ) {
-      // Thư ký đã bắt đầu phiên
       console.log("🎤 Session started by secretary - mic enabled");
       setSessionStarted(true);
     } else if (
       eventType === "speaker:started" ||
       eventType === "speaker_started"
     ) {
-      // Người khác bắt đầu nói
       const speakerId = msg.userId || msg.user_id || msg.speakerId;
       if (speakerId && speakerId !== user?.id) {
         setCurrentSpeaker(speakerId);
         const speakerName =
           users.find((u) => (u.id || u.userId || u.Id) === speakerId)
-            ?.fullName || "Một thành viên";
+            ?.fullName || "A member";
         Toast.show({
           type: "info",
-          text1: `${speakerName} đang nói`,
-          text2: "Vui lòng chờ đến lượt của bạn",
+          text1: `${speakerName} is speaking`,
+          text2: "Please wait for your turn",
         });
       }
     } else if (
       eventType === "speaker:stopped" ||
       eventType === "speaker_stopped"
     ) {
-      // Người khác dừng nói
       const speakerId = msg.userId || msg.user_id || msg.speakerId;
       if (speakerId && speakerId === currentSpeaker) {
         setCurrentSpeaker(null);
@@ -181,24 +169,22 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
       eventType === "broadcast_speaker_started" ||
       eventType === "broadcast_speaker:started"
     ) {
-      // Broadcast từ backend khi có người bắt đầu nói
       const speakerId = msg.userId || msg.user_id || msg.speakerId;
       if (speakerId && speakerId !== user?.id) {
         setCurrentSpeaker(speakerId);
         const speakerName =
           users.find((u) => (u.id || u.userId || u.Id) === speakerId)
-            ?.fullName || "Một thành viên";
+            ?.fullName || "A member";
         Toast.show({
           type: "info",
-          text1: `${speakerName} đang nói`,
-          text2: "Vui lòng chờ đến lượt của bạn",
+          text1: `${speakerName} is speaking`,
+          text2: "Please wait for your turn",
         });
       }
     } else if (
       eventType === "broadcast_speaker_stopped" ||
       eventType === "broadcast_speaker:stopped"
     ) {
-      // Broadcast từ backend khi có người dừng nói
       const speakerId = msg.userId || msg.user_id || msg.speakerId;
       if (speakerId && speakerId === currentSpeaker) {
         setCurrentSpeaker(null);
@@ -207,7 +193,6 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
     }
   };
 
-  // WebSocket URL - thêm user_id để backend nhận diện voice
   const WS_URL =
     session.id && user?.id
       ? `wss://ai-service.thankfultree-4b6bfec6.southeastasia.azurecontainerapps.io/ws/stt?defense_session_id=${session.id}&role=member&user_id=${user.id}`
@@ -246,7 +231,7 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
         setStudents(studentsRes);
       } catch (err) {
         console.error("Failed to load defense session detail", err);
-        setError("Không tải được chi tiết phiên bảo vệ");
+        setError("Failed to load defense session details");
       } finally {
         setIsLoading(false);
       }
@@ -255,7 +240,6 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
     loadDetail();
   }, [session.id, session.groupId]);
 
-  // Cleanup: reset speaker state khi unmount hoặc session end
   useEffect(() => {
     return () => {
       if (isRecording && user?.id) {
@@ -267,14 +251,11 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
 
   const handleToggleRecording = async () => {
     if (isRecording) {
-      // Dừng nói và broadcast
       try {
         stopRecording();
-        // Broadcast speaker stopped TRƯỚC khi reset state
         if (user?.id) {
           broadcastSpeakerStopped(user.id);
         }
-        // Reset state sau khi broadcast
         setCurrentSpeaker(null);
       } catch (error: any) {
         console.error("Error stopping recording:", error);
@@ -289,7 +270,6 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
         return;
       }
 
-      // Kiểm tra xem có người khác đang nói không
       if (currentSpeaker && currentSpeaker !== user?.id) {
         const speakerName =
           users.find((u) => (u.id || u.userId || u.Id) === currentSpeaker)
@@ -301,7 +281,6 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
         return;
       }
 
-      // Kiểm tra WebSocket connection
       if (!wsConnected) {
         console.warn("⚠️ WebSocket not connected, attempting to connect...");
         Alert.alert(
@@ -319,29 +298,26 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
       });
 
       try {
-        // Broadcast speaker started TRƯỚC khi start recording để các client khác biết
         if (user?.id) {
           broadcastSpeakerStarted(user.id);
           setCurrentSpeaker(user.id);
         }
-        // Sau đó mới start recording
         await startRecording();
         console.log("✅ Recording started successfully");
       } catch (error: any) {
         console.error("❌ Failed to start recording:", error);
-        // Nếu start recording thất bại, reset speaker state
         if (user?.id) {
           broadcastSpeakerStopped(user.id);
           setCurrentSpeaker(null);
         }
-        Alert.alert("Lỗi", error.message || "Không thể bắt đầu ghi âm");
+        Alert.alert("Error", error.message || "Cannot start recording");
       }
     }
   };
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
-    return d.toLocaleDateString("vi-VN", {
+    return d.toLocaleDateString("en-US", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -353,7 +329,6 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
     return `${format(start)} - ${format(end)}`;
   };
 
-  // Map backend response (Id, FullName, Email, Role) sang format dùng trong UI
   const mappedUsers = users.map((u) => ({
     ...u,
     userId: u.id || u.userId || u.Id,
@@ -367,19 +342,15 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
 
   const councilMembers = mappedUsers.filter((u) => u.roleType !== "Student");
 
-  // Ưu tiên lấy tất cả students từ getByGroupId (đầy đủ), sau đó merge với thông tin từ session nếu có
-  // Đảm bảo hiển thị đủ tất cả thành viên trong nhóm
   const studentsWithRole =
     students.length > 0
       ? students.map((studentData: any) => {
-          // Tìm thông tin từ session users nếu có
           const sessionUser = mappedUsers.find(
             (u) =>
               (u.userId || u.id || u.Id) ===
               (studentData.id || studentData.Id || studentData.userId)
           );
 
-          // Lấy groupRole từ studentData (API students/group/{groupId})
           const groupRole =
             studentData.groupRole || studentData.GroupRole || "Member";
 
@@ -416,14 +387,13 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
           .filter((u) => u.roleType === "Student")
           .map((user) => ({
             ...user,
-            groupRole: "Member", // Default nếu không có data
+            groupRole: "Member",
           }));
 
   return (
     <View style={globalStyles.container}>
       <StatusBar style="auto" />
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Status Card với Mic Controls - giống web */}
         <View style={styles.micControlsCard}>
           <View style={styles.statusRow}>
             <Text style={styles.statusText}>
@@ -432,26 +402,23 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
                   ? `${
                       users.find(
                         (u) => (u.id || u.userId || u.Id) === currentSpeaker
-                      )?.fullName || "Một thành viên"
-                    } đang nói`
-                  : "Phiên bảo vệ đã bắt đầu"
+                      )?.fullName || "A member"
+                    } is speaking`
+                  : "Defense session has started"
                 : wsConnected
-                ? "Chờ thư ký bắt đầu phiên bảo vệ"
-                : "Đang kết nối..."}
+                ? "Waiting for secretary to start defense session"
+                : "Connecting..."}
             </Text>
           </View>
 
-          {/* Mic Controls - luôn hiển thị */}
           <View style={styles.micControlsRow}>
             <View style={styles.micButtonWrapper}>
               {!sessionStarted ? (
-                // Khi chưa bắt đầu: hiển thị nút Start Mic disabled
                 <View style={[styles.micButton, styles.micButtonDisabled]}>
                   <MaterialIcons name="mic-none" size={20} color="#9ca3af" />
                   <Text style={styles.micButtonTextDisabled}>Start Mic</Text>
                 </View>
               ) : !isRecording ? (
-                // Khi đã bắt đầu nhưng chưa recording: nút Start Mic màu cam
                 <TouchableOpacity
                   onPress={handleToggleRecording}
                   disabled={
@@ -487,12 +454,11 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
                     ]}
                   >
                     {currentSpeaker && currentSpeaker !== user?.id
-                      ? "Đang có người nói"
+                      ? "Someone is speaking"
                       : "Start Mic"}
                   </Text>
                 </TouchableOpacity>
               ) : (
-                // Khi đang recording: nút màu cam
                 <TouchableOpacity
                   onPress={handleToggleRecording}
                   style={[styles.micButton, styles.micButtonOrange]}
@@ -503,7 +469,6 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
               )}
             </View>
 
-            {/* Connection status - luôn hiển thị, cách nút mic một khoảng */}
             <View style={styles.connectionDotWrapper}>
               <View
                 style={[
@@ -519,9 +484,9 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
 
         <View style={styles.sessionCard}>
           <View style={styles.sessionHeader}>
-            <Text style={styles.sessionTitle}>Phiên bảo vệ</Text>
+            <Text style={styles.sessionTitle}>Defense session</Text>
             <Text style={styles.sessionSubtitle}>
-              Nhóm {session.groupId} - Phòng {session.location}
+              Group {session.groupId} - Room {session.location}
             </Text>
 
             <View style={styles.chipRow}>
@@ -553,21 +518,20 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
           <Text style={styles.errorText}>{error}</Text>
         ) : (
           <>
-            {/* Group info */}
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeader}>
                 <MaterialIcons name="group" size={22} color={colors.primary} />
-                <Text style={styles.sectionTitle}>Nhóm & đề tài</Text>
+                <Text style={styles.sectionTitle}>Group & Topic</Text>
               </View>
               <Text style={styles.groupName}>
                 {group?.projectCode ||
                   group?.ProjectCode ||
-                  `Nhóm ${session.groupId}`}
+                  `Group ${session.groupId}`}
               </Text>
               {group?.topicTitle_VN || group?.TopicTitle_VN ? (
                 <>
                   <Text style={styles.sectionLabel}>
-                    Tên đề tài (Tiếng Việt)
+                    Topic Title (Vietnamese)
                   </Text>
                   <Text style={styles.sectionValue}>
                     {group.topicTitle_VN || group.TopicTitle_VN}
@@ -584,7 +548,6 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
               ) : null}
             </View>
 
-            {/* Council members */}
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeader}>
                 <MaterialIcons
@@ -592,11 +555,11 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
                   size={22}
                   color={colors.primary}
                 />
-                <Text style={styles.sectionTitle}>Hội đồng</Text>
+                <Text style={styles.sectionTitle}>Council</Text>
               </View>
               {councilMembers.length === 0 ? (
                 <Text style={styles.emptyText}>
-                  Chưa có thông tin thành viên hội đồng.
+                  No council member information available.
                 </Text>
               ) : (
                 councilMembers.map((m) => (
@@ -625,15 +588,14 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
               )}
             </View>
 
-            {/* Student members - hiển thị rõ Leader/Member */}
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeader}>
                 <MaterialIcons name="school" size={22} color={colors.primary} />
-                <Text style={styles.sectionTitle}>Thành viên nhóm</Text>
+                <Text style={styles.sectionTitle}>Group Members</Text>
               </View>
               {studentsWithRole.length === 0 ? (
                 <Text style={styles.emptyText}>
-                  Chưa có thông tin sinh viên trong nhóm.
+                  No student information available in the group.
                 </Text>
               ) : (
                 studentsWithRole.map((m) => {
@@ -697,7 +659,7 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
                 color={colors.primary}
               />
               <Text style={styles.backButtonText}>
-                Quay lại danh sách phiên
+                Back to session list
               </Text>
             </TouchableOpacity>
           </>

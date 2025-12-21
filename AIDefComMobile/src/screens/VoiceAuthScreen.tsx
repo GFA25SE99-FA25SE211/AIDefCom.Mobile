@@ -37,7 +37,7 @@ interface SampleInfo {
   status: SampleStatus;
   index: number;
   uri?: string;
-  score?: number; // Verification score if verified
+  score?: number;
 }
 
 export const VoiceAuthScreen = () => {
@@ -56,7 +56,6 @@ export const VoiceAuthScreen = () => {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const progressAnimation = useRef(new Animated.Value(0)).current;
 
-  // Verify only needs 1 sample (not 3 like registration)
   const totalSamples = 1;
   const prompts = VOICE_AUTH_CONFIG.PROMPTS;
 
@@ -66,14 +65,12 @@ export const VoiceAuthScreen = () => {
       return;
     }
 
-    // Initialize with only 1 sample for verification
     const initialSamples = Array.from({ length: totalSamples }, (_, i) => ({
       status: "pending" as SampleStatus,
       index: i,
     }));
     setSamples(initialSamples);
 
-    // Cleanup on unmount
     return () => {
       if (countdownRef.current) {
         clearInterval(countdownRef.current);
@@ -91,7 +88,7 @@ export const VoiceAuthScreen = () => {
       user?.email && user.email.includes("@")
         ? user.email.split("@")[0]
         : undefined;
-    const displayName = user?.fullName || emailName || "tôi";
+    const displayName = user?.fullName || emailName || "me";
     return raw.replace("{Tên người nói}", displayName);
   };
 
@@ -118,7 +115,6 @@ export const VoiceAuthScreen = () => {
 
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Use same recording options as registration to ensure WAV format compatibility
       const recordingOptions = {
         android: {
           extension: ".wav",
@@ -152,7 +148,6 @@ export const VoiceAuthScreen = () => {
       setIsRecording(true);
       setStatusMessage("Recording... tap again to finish");
 
-      // Update sample status
       setSamples((prev) => {
         const updated = [...prev];
         updated[currentSampleIndex] = {
@@ -162,7 +157,6 @@ export const VoiceAuthScreen = () => {
         return updated;
       });
 
-      // Start countdown
       setCountdown(RECORDING_DURATION);
       countdownRef.current = setInterval(() => {
         setCountdown((prev) => {
@@ -197,7 +191,6 @@ export const VoiceAuthScreen = () => {
     setIsRecording(false);
     setStatusMessage("Processing your voice sample...");
 
-    // Update sample status
     setSamples((prev) => {
       const updated = [...prev];
       updated[currentSampleIndex] = {
@@ -221,12 +214,10 @@ export const VoiceAuthScreen = () => {
 
       const result = await voiceService.verifyVoiceSample(uri, user.id, token);
 
-      // Check if verification is successful
       const isVerified = result.verified === true;
       const score = result.score;
 
       if (isVerified) {
-        // Update sample status
         setSamples((prev) => {
           const updated = [...prev];
           updated[currentSampleIndex] = {
@@ -235,7 +226,6 @@ export const VoiceAuthScreen = () => {
             score: score,
           };
 
-          // Verification successful - only 1 sample needed
           setStatusMessage("Voice verified! Redirecting...");
           Toast.show({
             type: "success",
@@ -249,7 +239,6 @@ export const VoiceAuthScreen = () => {
           return updated;
         });
       } else {
-        // Check if error is due to insufficient enrollment samples
         const errorMessage = result.message || "";
         const needsMoreSamples =
           (errorMessage.includes("needs") &&
@@ -258,7 +247,6 @@ export const VoiceAuthScreen = () => {
           errorMessage.includes("complete enrollment");
 
         if (needsMoreSamples) {
-          // User doesn't have enough samples → redirect to registration
           Toast.show({
             type: "error",
             text1: "Insufficient voice samples",
@@ -268,7 +256,6 @@ export const VoiceAuthScreen = () => {
             navigation.replace("VoiceRegistration");
           }, 1500);
         } else {
-          // Verification failed (voice not matched)
           setStatusMessage(
             result.message || "Voice not recognized. Please try again."
           );
@@ -346,7 +333,6 @@ export const VoiceAuthScreen = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <View style={styles.hero}>
           <View style={styles.heroIcon}>
             <LinearGradient
@@ -364,7 +350,6 @@ export const VoiceAuthScreen = () => {
           </Text>
         </View>
 
-        {/* Prompt Card */}
         {currentPrompt && (
           <View style={styles.promptCard}>
             <View style={styles.promptHeader}>
@@ -377,9 +362,7 @@ export const VoiceAuthScreen = () => {
           </View>
         )}
 
-        {/* Main Card */}
         <View style={styles.card}>
-          {/* Countdown Timer */}
           {isRecording && (
             <View style={styles.countdownContainer}>
               <Text style={styles.countdownText}>{countdown}s</Text>
@@ -423,14 +406,12 @@ export const VoiceAuthScreen = () => {
           <Text style={styles.cardSubtitle}>{statusMessage}</Text>
         </View>
 
-        {/* Status Indicator - Only 1 sample for verification */}
         {samples[0]?.status === "processing" && (
           <View style={styles.progressContainer}>
             <Text style={styles.progressText}>Verifying your voice...</Text>
           </View>
         )}
 
-        {/* Tips Card */}
         <View style={styles.tipsCard}>
           <View style={styles.tipsHeader}>
             <MaterialIcons name="info" size={20} color="#4f46e5" />
@@ -561,10 +542,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   microphoneButtonActive: {
-    // Active state handled by gradient colors
   },
   microphoneButtonProcessing: {
-    // Processing state handled by gradient colors
   },
   cardTitle: {
     fontSize: 18,
