@@ -12,7 +12,6 @@ const apiClient = axios.create({
   },
 });
 
-// Request interceptor để thêm token
 apiClient.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
   if (token) {
@@ -21,11 +20,9 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Response interceptor để handle refresh token
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Log error để debug
     console.error('API Error:', {
       message: error.message,
       url: error.config?.url,
@@ -35,7 +32,6 @@ apiClient.interceptors.response.use(
     });
 
     if (error.response?.status === 401) {
-      // Token expired, try to refresh
       const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
       const userId = await AsyncStorage.getItem(STORAGE_KEYS.USER_ID);
       
@@ -51,12 +47,10 @@ apiClient.interceptors.response.use(
             await AsyncStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, newTokenData.accessToken);
             await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, newTokenData.refreshToken);
             
-            // Retry original request with new token
             error.config.headers.Authorization = `Bearer ${newTokenData.accessToken}`;
             return apiClient.request(error.config);
           }
         } catch (refreshError) {
-          // Refresh failed, logout user
           await AsyncStorage.multiRemove([
             STORAGE_KEYS.ACCESS_TOKEN, 
             STORAGE_KEYS.REFRESH_TOKEN, 
@@ -70,7 +64,6 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Helper function to decode JWT token
 const decodeJWT = (token: string): any => {
   try {
     const base64Url = token.split('.')[1];
@@ -156,7 +149,6 @@ export const authService = {
 
     let tokenData = buildTokenData(response.data.data, loginData.email);
 
-    // Fetch full user profile to get real fullName, roles, etc.
     try {
       const profileResp = await axios.get<ApiResponse<any>>(
         `${API_CONFIG.BASE_URL}/auth/users/${tokenData.userId}`,
@@ -190,11 +182,10 @@ export const authService = {
   },
 
   async loginWithGoogle(googleToken: string): Promise<TokenResponseDto> {
-    // Backend expects GoogleUserLoginDTO with field "Token" (capital T)
     const response = await apiClient.post<ApiResponse<any>>(
       "/auth/login/google",
       {
-        Token: googleToken, // Match backend DTO field name (GoogleUserLoginDTO.Token)
+        Token: googleToken,
       }
     );
     console.log(
@@ -202,22 +193,17 @@ export const authService = {
       JSON.stringify(response.data, null, 2)
     );
 
-    // Handle case where new user gets temporary password
     const responseData = response.data.data;
     let tokenData: TokenResponseDto;
 
     if (responseData?.temporaryPassword) {
-      // New user - backend returns temporaryPassword and tokenData
       console.log("New Google user - temporary password provided");
       console.log("Temporary password:", responseData.temporaryPassword);
-      // Use tokenData from response
       tokenData = buildTokenData(responseData.tokenData, "");
     } else {
-      // Existing user - responseData is the tokenData directly
       tokenData = buildTokenData(responseData, "");
     }
 
-    // Fetch full user profile after Google login as well
     try {
       const profileResp = await axios.get<ApiResponse<any>>(
         `${API_CONFIG.BASE_URL}/auth/users/${tokenData.userId}`,
@@ -257,7 +243,6 @@ export const authService = {
     try {
       await apiClient.post('/auth/logout');
     } catch (error) {
-      // Even if logout API fails, clear local storage
       console.log('Logout API failed, but clearing local storage');
     } finally {
       await AsyncStorage.multiRemove([
@@ -295,7 +280,6 @@ export const defenseSessionService = {
     const response = await apiClient.get<
       ApiResponse<DefenseSessionUser[] | any[]>
     >(`/defense-sessions/${defenseSessionId}/users`);
-    // API trả về IEnumerable<object> nên cast về DefenseSessionUser
     return (response.data.data as DefenseSessionUser[]) || [];
   },
 };

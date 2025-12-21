@@ -24,7 +24,7 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const RECORDING_DURATION = 15; // 15 seconds per sample
+const RECORDING_DURATION = 15;
 const SAMPLE_RATE = 16000;
 
 type SampleStatus =
@@ -58,7 +58,6 @@ export const VoiceRegistrationScreen = () => {
   const totalSamples = VOICE_AUTH_CONFIG.REQUIRED_SAMPLES;
   const prompts = VOICE_AUTH_CONFIG.PROMPTS;
 
-  // Check enrollment status on mount – if already enrolled, go to VoiceAuth
   useEffect(() => {
     const checkEnrollmentStatus = async () => {
       try {
@@ -66,9 +65,8 @@ export const VoiceRegistrationScreen = () => {
           return;
         }
 
-        setStatusMessage("Đang kiểm tra...");
+        setStatusMessage("Checking...");
 
-        // Fast check with timeout (5 seconds max)
         const status = await Promise.race([
           voiceService.getEnrollmentStatus(user.id, token),
           new Promise<any>((resolve) =>
@@ -79,7 +77,7 @@ export const VoiceRegistrationScreen = () => {
                   enrollment_count: 0,
                   is_complete: false,
                 }),
-              5000 // 5 seconds max
+              5000
             )
           ),
         ]);
@@ -93,25 +91,20 @@ export const VoiceRegistrationScreen = () => {
           enrollmentCount >= minRequired;
 
         if (isComplete) {
-          // User already has enough samples → go to VoiceAuth screen immediately (no delay)
           navigation.replace("VoiceAuth");
           return;
         }
 
-        // Not yet complete → keep on registration screen
         setStatusMessage("Press button to start recording sample 1");
       } catch (error: any) {
         console.error("Failed to check enrollment status:", error);
-        // Fail fast - just continue with registration
         setStatusMessage("Press button to start recording sample 1");
       }
     };
 
     checkEnrollmentStatus();
-    // Only run once when screen mounts / user changes
   }, [navigation, token, user?.id]);
 
-  // Initialize samples
   useEffect(() => {
     if (samples.length === 0) {
       const initialSamples: SampleInfo[] = Array.from(
@@ -125,7 +118,6 @@ export const VoiceRegistrationScreen = () => {
     }
   }, [totalSamples]);
 
-  // Update progress animation
   useEffect(() => {
     const completedCount = samples.filter(
       (s) => s.status === "completed"
@@ -144,7 +136,7 @@ export const VoiceRegistrationScreen = () => {
       user?.email && user.email.includes("@")
         ? user.email.split("@")[0]
         : undefined;
-    const displayName = user?.fullName || emailName || "tôi";
+    const displayName = user?.fullName || emailName || "me";
     return raw.replace("{Tên người nói}", displayName);
   };
 
@@ -211,7 +203,6 @@ export const VoiceRegistrationScreen = () => {
 
       console.log("✅ Permission granted, setting up audio...");
 
-      // Set audio mode
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
@@ -223,7 +214,6 @@ export const VoiceRegistrationScreen = () => {
       await new Promise((resolve) => setTimeout(resolve, 500));
       console.log("🔧 Audio mode configured");
 
-      // Recording options
       const recordingOptions = {
         android: {
           extension: ".wav",
@@ -269,12 +259,11 @@ export const VoiceRegistrationScreen = () => {
       }
 
       setRecording(newRecording);
-      recordingRef.current = newRecording; // Lưu vào ref để dùng trong countdown
+      recordingRef.current = newRecording;
       setIsRecording(true);
       setCountdown(RECORDING_DURATION);
       setStatusMessage(`Recording sample ${currentSampleIndex + 1}...`);
 
-      // Update sample status
       setSamples((prev) => {
         const updated = [...prev];
         updated[currentSampleIndex] = {
@@ -284,35 +273,29 @@ export const VoiceRegistrationScreen = () => {
         return updated;
       });
 
-      // Lưu recording vào ref để dùng trong countdown
       recordingRef.current = newRecording;
 
-      // Start countdown timer - tự động dừng sau 15 giây
       countdownRef.current = setInterval(() => {
         setCountdown((prev) => {
           const newValue = prev - 1;
           if (newValue <= 0) {
-            // Clear interval ngay lập tức
             if (countdownRef.current) {
               clearInterval(countdownRef.current);
               countdownRef.current = null;
             }
-            // Tự động dừng recording ngay khi countdown về 0
             console.log("⏰ Countdown reached 0, auto-stopping recording...");
-            // Gọi stopRecording ngay, không cần check state
             setTimeout(() => {
               const currentRec = recordingRef.current;
               if (currentRec) {
                 stopRecording();
               }
-            }, 50); // Giảm delay xuống 50ms
+            }, 50);
             return 0;
           }
           return newValue;
         });
       }, 1000);
 
-      // Monitor recording
       newRecording.setOnRecordingStatusUpdate((status) => {
         if (!status.isRecording && isRecording) {
           console.warn("⚠️ Recording stopped unexpectedly");
@@ -321,7 +304,7 @@ export const VoiceRegistrationScreen = () => {
 
       Toast.show({
         type: "info",
-        text1: "Đang ghi âm",
+        text1: "Recording",
         text2: `Sample ${currentSampleIndex + 1}/${totalSamples}`,
       });
     } catch (error: any) {
@@ -332,35 +315,30 @@ export const VoiceRegistrationScreen = () => {
   };
 
   const stopRecording = async () => {
-    // Lấy recording từ ref hoặc state
     const currentRecording = recordingRef.current || recording;
 
-    // Nếu không có recording và không đang recording, return
     if (!currentRecording && !isRecording) {
       console.log("⚠️ stopRecording called but no recording");
       return;
     }
 
-    // Nếu đã đang processing, không cho stop lại
     if (samples[currentSampleIndex]?.status === "processing") {
       console.log("⚠️ Already processing, cannot stop");
       return;
     }
 
     try {
-      // Clear countdown timer first
       if (countdownRef.current) {
         clearInterval(countdownRef.current);
         countdownRef.current = null;
       }
 
       setIsRecording(false);
-      setCountdown(0); // Set countdown về 0 để UI update
+      setCountdown(0);
       setStatusMessage(
         `Uploading sample ${currentSampleIndex + 1} to server...`
       );
 
-      // Update sample status to processing
       setSamples((prev) => {
         const updated = [...prev];
         updated[currentSampleIndex] = {
@@ -379,14 +357,12 @@ export const VoiceRegistrationScreen = () => {
       const status = await currentRecording.getStatusAsync();
       console.log("📊 Final status:", status);
 
-      // Stop recording nếu vẫn đang recording
       if (status.isRecording) {
         console.log("🛑 Stopping active recording...");
         await currentRecording.stopAndUnloadAsync();
         console.log("✅ Recording stopped successfully");
       } else {
         console.log("ℹ️ Recording was already stopped");
-        // Vẫn cần unload để giải phóng tài nguyên
         try {
           await currentRecording.stopAndUnloadAsync();
         } catch (e) {
@@ -401,7 +377,6 @@ export const VoiceRegistrationScreen = () => {
         throw new Error("Recording file not found");
       }
 
-      // Validate duration
       const durationSeconds = status.durationMillis
         ? status.durationMillis / 1000
         : 0;
@@ -418,9 +393,8 @@ export const VoiceRegistrationScreen = () => {
         );
       }
 
-      // Upload to server
       if (!user?.id) {
-        throw new Error("Không tìm thấy thông tin người dùng");
+        throw new Error("User information not found");
       }
 
       console.log("📤 Uploading sample to server...");
@@ -466,8 +440,8 @@ export const VoiceRegistrationScreen = () => {
       Toast.show({
         type: "success",
         position: "top",
-        text1: `Sample ${currentSampleIndex + 1} đã lưu`,
-        text2: `Đã ghi ${enrollmentCount}/${totalSamples} mẫu`,
+        text1: `Sample ${currentSampleIndex + 1} saved`,
+        text2: `Recorded ${enrollmentCount}/${totalSamples} samples`,
       });
 
       if (isComplete && enrollmentCount >= minRequired) {
@@ -476,7 +450,7 @@ export const VoiceRegistrationScreen = () => {
           type: "success",
           position: "top",
           text1: "Voice registration successful",
-          text2: `Đã đăng ký ${enrollmentCount} mẫu giọng nói. Chuyển đến trang chủ...`,
+          text2: `Registered ${enrollmentCount} voice samples. Redirecting to dashboard...`,
         });
         setTimeout(() => {
           navigation.replace("Dashboard");
@@ -484,13 +458,12 @@ export const VoiceRegistrationScreen = () => {
       } else if (nextSampleIndex >= 0) {
         setCurrentSampleIndex(nextSampleIndex);
         setStatusMessage(
-          `Đã ghi ${enrollmentCount}/${totalSamples} mẫu. Nhấn nút để ghi mẫu tiếp theo.`
+          `Recorded ${enrollmentCount}/${totalSamples} samples. Press button to record next sample.`
         );
       }
     } catch (error: any) {
       console.error("❌ Failed to stop/upload recording:", error);
 
-      // Check if error is "Maximum enrollment limit reached" - user already has 3 samples
       const errorMessage = error.message || "";
       const isMaxEnrollmentReached =
         errorMessage.includes("Maximum enrollment limit") ||
@@ -498,14 +471,15 @@ export const VoiceRegistrationScreen = () => {
         errorMessage.includes("Đã đủ 3 mẫu");
 
       if (isMaxEnrollmentReached) {
-        // User already has 3 samples - redirect to VoiceAuth (verify)
         console.log("✅ User already has 3 samples - redirecting to VoiceAuth");
-        setStatusMessage("Đã đủ 3 mẫu giọng nói. Chuyển đến xác thực...");
+        setStatusMessage(
+          "Already have 3 voice samples. Redirecting to authentication..."
+        );
         Toast.show({
           type: "info",
           position: "top",
-          text1: "Đã đủ mẫu giọng nói",
-          text2: "Chuyển đến trang xác thực giọng nói",
+          text1: "Enough voice samples",
+          text2: "Redirecting to voice authentication page",
         });
         setTimeout(() => {
           navigation.replace("VoiceAuth");
@@ -516,7 +490,6 @@ export const VoiceRegistrationScreen = () => {
 
       setStatusMessage(error.message || "Upload failed. Please try again.");
 
-      // Mark sample as failed
       setSamples((prev) => {
         const updated = [...prev];
         updated[currentSampleIndex] = {
@@ -529,7 +502,7 @@ export const VoiceRegistrationScreen = () => {
       Toast.show({
         type: "error",
         position: "top",
-        text1: "Đăng ký thất bại",
+        text1: "Registration failed",
         text2: error.message || "Please try again",
       });
 
@@ -562,7 +535,7 @@ export const VoiceRegistrationScreen = () => {
       };
       return updated;
     });
-    setStatusMessage(`Nhấn nút để ghi lại sample ${index + 1}`);
+    setStatusMessage(`Press button to re-record sample ${index + 1}`);
   };
 
   useEffect(() => {
@@ -592,7 +565,6 @@ export const VoiceRegistrationScreen = () => {
           </Text>
         </View>
 
-        {/* Progress Bar */}
         <View style={styles.progressContainer}>
           <View style={styles.progressBarBackground}>
             <Animated.View
@@ -608,11 +580,10 @@ export const VoiceRegistrationScreen = () => {
             />
           </View>
           <Text style={styles.progressText}>
-            {completedCount}/{totalSamples} samples đã lưu
+            {completedCount}/{totalSamples} samples saved
           </Text>
         </View>
 
-        {/* Step Indicator */}
         <View style={styles.stepIndicator}>
           {samples.map((sample, index) => (
             <TouchableOpacity
@@ -657,7 +628,6 @@ export const VoiceRegistrationScreen = () => {
         </View>
 
         <View style={styles.card}>
-          {/* Countdown Timer */}
           {isRecording && (
             <View style={styles.countdownContainer}>
               <Text style={styles.countdownText}>{countdown}s</Text>

@@ -49,8 +49,7 @@
     },
     "plugins": [
       "expo-dev-client",
-      "expo-web-browser",
-      "./modules/audio-level-monitor/app.plugin.js"
+      "expo-web-browser"
     ]
   }
 }

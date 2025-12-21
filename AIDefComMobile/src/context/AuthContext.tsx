@@ -31,7 +31,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Check if user is already logged in when app starts
   useEffect(() => {
     checkAuthStatus();
   }, []);
@@ -82,18 +81,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const ensureValidRoles = (tokenData: TokenResponseDto) => {
-    // Allow all roles to access - no restriction
-    // Only validate that roles array exists and is valid
     if (!tokenData.roles || !Array.isArray(tokenData.roles)) {
-      throw new Error("Dữ liệu phản hồi không hợp lệ - thiếu roles");
+      throw new Error("Invalid response data - missing roles");
     }
 
-    // Check that user has at least one role
     if (tokenData.roles.length === 0) {
-      throw new Error("Tài khoản không có quyền truy cập");
+      throw new Error("Account does not have access permission");
     }
 
-    // All roles are allowed - no specific role restriction
   };
 
   const handleAuthError = (error: any) => {
@@ -105,13 +100,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       code: error.code,
     });
 
-    let errorMessage = "Đã có lỗi xảy ra khi đăng nhập";
+    let errorMessage = "An error occurred during login";
     if (
       error.code === "ECONNREFUSED" ||
       error.message?.includes("Network Error")
     ) {
       errorMessage =
-        "Không thể kết nối đến server. Kiểm tra lại kết nối mạng và đảm bảo API đang chạy.";
+        "Cannot connect to server. Check your network connection and ensure the API is running.";
     } else if (
       error.response?.status === 401 ||
       error.response?.status === 500
@@ -123,13 +118,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         details?.includes("email") ||
         details?.includes("password")
       ) {
-        errorMessage = "Email hoặc mật khẩu không đúng";
+        errorMessage = "Invalid email or password";
       } else {
-        errorMessage = details || "Email hoặc mật khẩu không đúng";
+        errorMessage = details || "Invalid email or password";
       }
     } else if (error.response?.status === 404) {
       errorMessage =
-        "Không tìm thấy API. Kiểm tra lại URL và đảm bảo API đang chạy.";
+        "API not found. Check the URL and ensure the API is running.";
     } else if (error.response?.data?.details) {
       errorMessage = error.response.data.details;
     } else if (error.response?.data?.message) {
@@ -138,7 +133,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     Toast.show({
       type: "error",
-      text1: "Lỗi đăng nhập",
+      text1: "Login error",
       text2: errorMessage,
     });
   };
@@ -156,10 +151,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         console.error("Role validation error:", roleError);
         Toast.show({
           type: "error",
-          text1: "Không có quyền truy cập",
+          text1: "Access denied",
           text2:
             roleError?.message ||
-            "Tài khoản không có quyền truy cập hợp lệ.",
+            "Account does not have valid access permission.",
         });
         return false;
       }
@@ -167,14 +162,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       Toast.show({
         type: "success",
-        text1: tokenData.fullName || "Đăng nhập thành công",
-        text2: "Đăng nhập thành công",
+        text1: tokenData.fullName || "Login successful",
+        text2: "Login successful",
       });
 
       return true;
     } catch (error: any) {
       console.error("Login error:", error);
-      // Don't show toast here, let the calling component handle it
       return false;
     } finally {
       setIsLoading(false as boolean);
@@ -191,10 +185,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         console.error("Role validation error (Google):", roleError);
         Toast.show({
           type: "error",
-          text1: "Không có quyền truy cập",
+          text1: "Access denied",
           text2:
             roleError?.message ||
-            "Tài khoản không có quyền truy cập hợp lệ.",
+            "Account does not have valid access permission.",
         });
         return false;
       }
@@ -202,8 +196,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       Toast.show({
         type: "success",
-        text1: tokenData.fullName || "Đăng nhập thành công",
-        text2: "Đăng nhập thành công",
+        text1: tokenData.fullName || "Login successful",
+        text2: "Login successful",
       });
 
       return true;
@@ -228,7 +222,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       Toast.show({
         type: "success",
-        text1: "Đăng xuất thành công",
+        text1: "Logout successful",
       });
     }
   };

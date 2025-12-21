@@ -6,8 +6,6 @@ import { LoginScreen } from "../screens/LoginScreen";
 import { VoiceRegistrationScreen } from "../screens/VoiceRegistrationScreen";
 import { VoiceAuthScreen } from "../screens/VoiceAuthScreen";
 import { DashboardScreen } from "../screens/DashboardScreen";
-import { AudioTestScreen } from "../screens/AudioTestScreen";
-import { AudioRecordingTestScreen } from "../screens/AudioRecordingTestScreen";
 import { Loading } from "../components/Loading";
 import { DefenseSessionDetailScreen } from "../screens/DefenseSessionDetailScreen";
 import { DefenseSession } from "../types/defense";
@@ -17,8 +15,6 @@ export type RootStackParamList = {
   VoiceRegistration: undefined;
   VoiceAuth: undefined;
   Dashboard: undefined;
-  AudioTest: undefined;
-  AudioRecordingTest: undefined;
   DefenseSessionDetail: { session: DefenseSession };
 };
 
@@ -31,12 +27,6 @@ export const AppNavigator = () => {
     return <Loading />;
   }
 
-  // IMPORTANT: ALL ROLES must go through voice enrollment check
-  // - When user logs in via LoginScreen, navigateByEnrollmentStatus() is called
-  //   which redirects to VoiceRegistration (if not enrolled) or VoiceAuth (if enrolled)
-  // - When app restarts with logged-in user, VoiceRegistrationScreen will check
-  //   enrollment status on mount and redirect to VoiceAuth if already enrolled
-  // - This ensures NO role can bypass voice enrollment requirement
   const initialRoute: keyof RootStackParamList = user
     ? "VoiceRegistration"
     : "Login";
@@ -57,11 +47,6 @@ export const AppNavigator = () => {
         <Stack.Screen
           name="DefenseSessionDetail"
           component={DefenseSessionDetailScreen}
-        />
-        <Stack.Screen name="AudioTest" component={AudioTestScreen} />
-        <Stack.Screen
-          name="AudioRecordingTest"
-          component={AudioRecordingTestScreen}
         />
       </Stack.Navigator>
     </NavigationContainer>

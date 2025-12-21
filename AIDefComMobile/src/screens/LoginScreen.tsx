@@ -42,11 +42,8 @@ export const LoginScreen = () => {
 
   const { login, loginWithGoogle, isLoading, user, token } = useAuth();
 
-  // Phát hiện Expo Go: nếu executionEnvironment là 'storeClient' thì đang dùng Expo Go
   const isExpoGo = Constants.executionEnvironment === "storeClient";
 
-  // Khi dùng Expo Go, phải dùng Web Client ID vì iOS Client ID không hỗ trợ exp:// redirect
-  // Khi dùng development build hoặc production, dùng iOS Client ID
   const shouldUseWebClient = isExpoGo && Platform.OS === "ios";
 
   const platformFallbackClientId =
@@ -58,11 +55,9 @@ export const LoginScreen = () => {
   const scheme = Constants.expoConfig?.scheme || "aidefcommobile";
 
   const googleAuthRequestConfig: Partial<GoogleAuthRequestConfig> = {
-    // Nếu đang dùng Expo Go trên iOS, chỉ dùng Web Client ID
     clientId: shouldUseWebClient
       ? googleOAuthConfig.webClientId || platformFallbackClientId
       : platformFallbackClientId,
-    // Chỉ set iOS Client ID khi KHÔNG phải Expo Go
     iosClientId: shouldUseWebClient
       ? undefined
       : googleOAuthConfig.iosClientId || platformFallbackClientId,
@@ -71,12 +66,10 @@ export const LoginScreen = () => {
     webClientId: googleOAuthConfig.webClientId || platformFallbackClientId,
     responseType: "id_token",
     selectAccount: true,
-    // Với Expo Go, set redirectUri rõ ràng để dùng Expo auth service proxy
-    // Development build/production iOS sử dụng Google's iOS URL Scheme tự động
     redirectUri: isExpoGo
-      ? `https://auth.expo.io/@anonymous/aidefcommobile` // Expo Go dùng Expo auth service proxy - phải khớp với Google Cloud Console
+      ? `https://auth.expo.io/@anonymous/aidefcommobile`
       : Platform.select({
-          ios: undefined, // iOS native build sử dụng Google's iOS URL Scheme tự động
+          ios: undefined,
           android: `${scheme}:/oauth2redirect`,
           web: undefined,
         }),
@@ -85,7 +78,6 @@ export const LoginScreen = () => {
   const [googleRequest, googleResponse, promptGoogleLogin] =
     Google.useAuthRequest(googleAuthRequestConfig);
 
-  // Debug: Log cấu hình OAuth
   useEffect(() => {
     console.log("=== Google OAuth Config Debug ===");
     console.log("isExpoGo:", isExpoGo);
@@ -108,20 +100,19 @@ export const LoginScreen = () => {
           Toast.show({
             type: "error",
             text1: "Google login",
-            text2: "Không lấy được token từ Google",
+            text2: "Failed to get token from Google",
           });
         }
       } else if (googleResponse?.type === "error") {
         Toast.show({
           type: "error",
           text1: "Google login",
-          text2: "Google login thất bại",
+          text2: "Google login failed",
         });
       }
     };
 
     processGoogleResponse();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleResponse]);
 
   const validateForm = () => {
@@ -129,18 +120,18 @@ export const LoginScreen = () => {
     let isValid = true;
 
     if (!email.trim()) {
-      newErrors.email = "Vui lòng nhập email";
+      newErrors.email = "Please enter email";
       isValid = false;
     } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = "Email không hợp lệ";
+      newErrors.email = "Invalid email";
       isValid = false;
     }
 
     if (!password.trim()) {
-      newErrors.password = "Vui lòng nhập mật khẩu";
+      newErrors.password = "Please enter password";
       isValid = false;
     } else if (password.length < 6) {
-      newErrors.password = "Mật khẩu phải có ít nhất 6 ký tự";
+      newErrors.password = "Password must be at least 6 characters";
       isValid = false;
     }
 
@@ -153,23 +144,16 @@ export const LoginScreen = () => {
 
     const success = await login(email.trim(), password);
     if (success) {
-      // After login, user and token are set in context
-      // Use a small delay to ensure state is updated, then check enrollment
-      // ALL ROLES must check voice enrollment - no exceptions
       setTimeout(async () => {
-        // Get fresh values from context after state update
         const currentUser = user;
         const currentToken = token;
         if (currentUser?.id && currentToken) {
-          // Always check voice enrollment for ALL roles
           await navigateByEnrollmentStatus(
             currentUser.id,
             currentToken,
             navigation
           );
         } else {
-          // Fallback: navigate to registration if user/token not available
-          // This ensures voice registration is required
           navigation.replace("VoiceRegistration");
         }
       }, 300);
@@ -192,23 +176,16 @@ export const LoginScreen = () => {
         text2: "Google login failed",
       });
     } else {
-      // After login, user and token are set in context
-      // Use a small delay to ensure state is updated, then check enrollment
-      // ALL ROLES must check voice enrollment - no exceptions
       setTimeout(async () => {
-        // Get fresh values from context after state update
         const currentUser = user;
         const currentToken = token;
         if (currentUser?.id && currentToken) {
-          // Always check voice enrollment for ALL roles
           await navigateByEnrollmentStatus(
             currentUser.id,
             currentToken,
             navigation
           );
         } else {
-          // Fallback: navigate to registration if user/token not available
-          // This ensures voice registration is required
           navigation.replace("VoiceRegistration");
         }
       }, 300);
@@ -226,8 +203,8 @@ export const LoginScreen = () => {
     if (!canUseGoogleLogin) {
       Toast.show({
         type: "error",
-        text1: "Google login chưa được cấu hình",
-        text2: "Vui lòng thêm Google OAuth Client IDs vào app.json",
+        text1: "Google login not configured",
+        text2: "Please add Google OAuth Client IDs to app.json",
         visibilityTime: 4000,
       });
       console.warn(
@@ -245,7 +222,7 @@ export const LoginScreen = () => {
       Toast.show({
         type: "error",
         text1: "Google login",
-        text2: "Google login chưa sẵn sàng. Vui lòng thử lại.",
+        text2: "Google login not ready. Please try again.",
       });
       return;
     }
@@ -256,8 +233,8 @@ export const LoginScreen = () => {
       console.error("Google login error:", error);
       Toast.show({
         type: "error",
-        text1: "Google login thất bại",
-        text2: error.message || "Vui lòng thử lại",
+        text1: "Google login failed",
+        text2: error.message || "Please try again",
       });
     }
   };
@@ -279,7 +256,6 @@ export const LoginScreen = () => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Logo Header */}
         <View style={styles.logoContainer}>
           <Image
             source={require("../../assets/logo.png")}

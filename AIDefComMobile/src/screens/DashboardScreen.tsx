@@ -40,10 +40,6 @@ export const DashboardScreen = () => {
         setIsLoading(true);
         setError(null);
 
-        // Phân biệt role để dùng đúng API:
-        // - Student: /defense-sessions/student/{userId}
-        // - Lecturer: /defense-sessions/lecturer/{userId}
-        // - Khác: getAll()
         let data: DefenseSession[] = [];
         if (user?.id && Array.isArray(user.roles) && user.roles.length > 0) {
           if (user.roles.includes("Student")) {
@@ -57,7 +53,6 @@ export const DashboardScreen = () => {
           data = await defenseSessionService.getAll();
         }
 
-        // Fetch group data cho mỗi session để lấy topicTitle
         const sessionsWithGroupData = await Promise.all(
           data.map(async (session) => {
             try {
@@ -81,7 +76,7 @@ export const DashboardScreen = () => {
         setSessions(sessionsWithGroupData);
       } catch (err: any) {
         console.error("Failed to load defense sessions", err);
-        setError("Không tải được danh sách phiên bảo vệ");
+        setError("Failed to load defense sessions list");
       } finally {
         setIsLoading(false);
       }
@@ -100,7 +95,6 @@ export const DashboardScreen = () => {
   };
 
   const formatTimeRange = (start: string, end: string) => {
-    // Backend sends TimeSpan, usually as "HH:mm:ss"
     const format = (t: string) => t?.slice(0, 5) || "";
     return `${format(start)} - ${format(end)}`;
   };
@@ -115,7 +109,6 @@ export const DashboardScreen = () => {
     <View style={globalStyles.container}>
       <StatusBar style="auto" />
 
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.userInfo}>
           <View style={styles.avatar}>
@@ -124,7 +117,7 @@ export const DashboardScreen = () => {
             </Text>
           </View>
           <View style={styles.userDetails}>
-            <Text style={styles.welcomeText}>Xin chào,</Text>
+            <Text style={styles.welcomeText}>Hello,</Text>
             <Text style={styles.userName}>{user?.fullName || "Student"}</Text>
             <Text style={styles.userEmail}>{user?.email}</Text>
           </View>
@@ -148,7 +141,7 @@ export const DashboardScreen = () => {
           <Text style={styles.errorText}>{error}</Text>
         ) : sessions.length === 0 ? (
           <Text style={styles.emptyText}>
-            Bạn chưa có phiên bảo vệ nào được lên lịch.
+            You don't have any scheduled defense sessions.
           </Text>
         ) : (
           sessions.map((session) => (
