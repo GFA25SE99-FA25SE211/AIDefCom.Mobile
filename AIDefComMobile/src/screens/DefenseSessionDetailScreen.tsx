@@ -540,7 +540,7 @@ export const DefenseSessionDetailScreen: React.FC<Props> = ({
               ) : null}
               {group?.topicTitle_EN || group?.TopicTitle_EN ? (
                 <>
-                  <Text style={styles.sectionLabel}>Tên đề tài (English)</Text>
+                  <Text style={styles.sectionLabel}>Topic Title (English)</Text>
                   <Text style={styles.sectionValue}>
                     {group.topicTitle_EN || group.TopicTitle_EN}
                   </Text>
