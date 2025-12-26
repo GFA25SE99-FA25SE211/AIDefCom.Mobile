@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
+import LiveAudioStream from "react-native-live-audio-stream";
+import * as FileSystem from "expo-file-system/legacy";
 import Toast from "react-native-toast-message";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -26,6 +28,55 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const RECORDING_DURATION = 15;
 const SAMPLE_RATE = 16000;
+const CHANNELS = 1;
+const BITS_PER_SAMPLE = 16;
+
+// WAV Helper functions
+const createWavHeader = (dataLength: number): Uint8Array => {
+  const byteRate = SAMPLE_RATE * CHANNELS * (BITS_PER_SAMPLE / 8);
+  const blockAlign = CHANNELS * (BITS_PER_SAMPLE / 8);
+  const buffer = new ArrayBuffer(44);
+  const view = new DataView(buffer);
+
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + dataLength, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, CHANNELS, true);
+  view.setUint32(24, SAMPLE_RATE, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, BITS_PER_SAMPLE, true);
+  writeString(36, "data");
+  view.setUint32(40, dataLength, true);
+
+  return new Uint8Array(buffer);
+};
+
+const base64ToUint8Array = (base64: string): Uint8Array => {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+};
+
+const uint8ArrayToBase64 = (bytes: Uint8Array): string => {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+};
 
 type SampleStatus =
   | "pending"
@@ -43,10 +94,19 @@ interface SampleInfo {
 export const VoiceRegistrationScreen = () => {
   const navigation = useNavigation<NavigationProp>();
   const { token, user } = useAuth();
+  const totalSamples = VOICE_AUTH_CONFIG.REQUIRED_SAMPLES;
+  const prompts = VOICE_AUTH_CONFIG.PROMPTS;
+  
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [currentSampleIndex, setCurrentSampleIndex] = useState(0);
-  const [samples, setSamples] = useState<SampleInfo[]>([]);
+  // Initialize samples directly instead of in useEffect to avoid race conditions
+  const [samples, setSamples] = useState<SampleInfo[]>(() =>
+    Array.from({ length: totalSamples }, (_, i) => ({
+      status: "pending" as const,
+      index: i,
+    }))
+  );
   const [countdown, setCountdown] = useState(RECORDING_DURATION);
   const [statusMessage, setStatusMessage] = useState(
     "Press button to start recording sample 1"
@@ -54,9 +114,11 @@ export const VoiceRegistrationScreen = () => {
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const progressAnimation = useRef(new Animated.Value(0)).current;
-
-  const totalSamples = VOICE_AUTH_CONFIG.REQUIRED_SAMPLES;
-  const prompts = VOICE_AUTH_CONFIG.PROMPTS;
+  
+  // For Android WAV recording using LiveAudioStream
+  const audioDataRef = useRef<Uint8Array[]>([]);
+  const recordingStartTimeRef = useRef<number>(0);
+  const isRecordingRef = useRef<boolean>(false); // Track recording state with ref for callbacks
 
   useEffect(() => {
     const checkEnrollmentStatus = async () => {
@@ -65,7 +127,7 @@ export const VoiceRegistrationScreen = () => {
           return;
         }
 
-        setStatusMessage("Checking...");
+        setStatusMessage("Checking enrollment status...");
 
         const status = await Promise.race([
           voiceService.getEnrollmentStatus(user.id, token),
@@ -90,12 +152,55 @@ export const VoiceRegistrationScreen = () => {
           status.enrollment_status === "enrolled" ||
           enrollmentCount >= minRequired;
 
+        console.log("📊 Enrollment status:", {
+          enrollmentCount,
+          minRequired,
+          isComplete,
+        });
+
+        // If already completed, redirect to VoiceAuth
         if (isComplete) {
-          navigation.replace("VoiceAuth");
+          Toast.show({
+            type: "info",
+            text1: "Voice already registered",
+            text2: "Redirecting to authentication...",
+          });
+          setTimeout(() => {
+            navigation.replace("VoiceAuth");
+          }, 1000);
           return;
         }
 
-        setStatusMessage("Press button to start recording sample 1");
+        // If partially enrolled, update samples to reflect current state
+        if (enrollmentCount > 0) {
+          setSamples((prev) => {
+            const updated = [...prev];
+            // Mark first N samples as completed
+            for (let i = 0; i < enrollmentCount && i < updated.length; i++) {
+              updated[i] = {
+                ...updated[i],
+                status: "completed",
+              };
+            }
+            return updated;
+          });
+          
+          // Set current index to the next pending sample
+          setCurrentSampleIndex(enrollmentCount);
+          
+          const remaining = minRequired - enrollmentCount;
+          setStatusMessage(
+            `Already have ${enrollmentCount}/${minRequired} samples. Need ${remaining} more. Press button to continue.`
+          );
+          
+          Toast.show({
+            type: "info",
+            text1: `${enrollmentCount} samples already registered`,
+            text2: `Need ${remaining} more sample(s)`,
+          });
+        } else {
+          setStatusMessage("Press button to start recording sample 1");
+        }
       } catch (error: any) {
         console.error("Failed to check enrollment status:", error);
         setStatusMessage("Press button to start recording sample 1");
@@ -104,19 +209,6 @@ export const VoiceRegistrationScreen = () => {
 
     checkEnrollmentStatus();
   }, [navigation, token, user?.id]);
-
-  useEffect(() => {
-    if (samples.length === 0) {
-      const initialSamples: SampleInfo[] = Array.from(
-        { length: totalSamples },
-        (_, i) => ({
-          status: "pending",
-          index: i,
-        })
-      );
-      setSamples(initialSamples);
-    }
-  }, [totalSamples]);
 
   useEffect(() => {
     const completedCount = samples.filter(
@@ -143,11 +235,55 @@ export const VoiceRegistrationScreen = () => {
   const currentPrompt = getPromptForIndex(currentSampleIndex);
   const completedCount = samples.filter((s) => s.status === "completed").length;
 
+  const handleRecordingError = (error: any) => {
+    const errorMessage = error.message || "";
+    const isMaxEnrollmentReached =
+      errorMessage.includes("Maximum enrollment limit") ||
+      errorMessage.includes("Đã đủ 3 samples") ||
+      errorMessage.includes("Đã đủ 3 mẫu");
+
+    if (isMaxEnrollmentReached) {
+      console.log("✅ User already has 3 samples - redirecting to VoiceAuth");
+      setStatusMessage("Already have 3 voice samples. Redirecting to authentication...");
+      Toast.show({
+        type: "info",
+        position: "top",
+        text1: "Enough voice samples",
+        text2: "Redirecting to voice authentication page",
+      });
+      setTimeout(() => {
+        navigation.replace("VoiceAuth");
+      }, 1500);
+      resetRecording();
+      return;
+    }
+
+    setStatusMessage(error.message || "Upload failed. Please try again.");
+    setSamples((prev) => {
+      const updated = [...prev];
+      updated[currentSampleIndex] = {
+        ...updated[currentSampleIndex],
+        status: "failed",
+      };
+      return updated;
+    });
+
+    Toast.show({
+      type: "error",
+      position: "top",
+      text1: "Error",
+      text2: error.message || "Failed to process recording",
+    });
+    resetRecording();
+  };
+
   const resetRecording = () => {
     setRecording(null);
     recordingRef.current = null;
     setIsRecording(false);
+    isRecordingRef.current = false;
     setCountdown(RECORDING_DURATION);
+    audioDataRef.current = [];
     if (countdownRef.current) {
       clearInterval(countdownRef.current);
       countdownRef.current = null;
@@ -214,6 +350,76 @@ export const VoiceRegistrationScreen = () => {
       await new Promise((resolve) => setTimeout(resolve, 500));
       console.log("🔧 Audio mode configured");
 
+      // Android: Use LiveAudioStream to capture raw PCM and create WAV
+      // iOS: Use expo-av which creates WAV properly
+      if (Platform.OS === "android") {
+        console.log("🎙️ Starting Android WAV recording with LiveAudioStream...");
+        
+        audioDataRef.current = [];
+        recordingStartTimeRef.current = Date.now();
+        
+        LiveAudioStream.init({
+          sampleRate: SAMPLE_RATE,
+          channels: CHANNELS,
+          bitsPerSample: BITS_PER_SAMPLE,
+          audioSource: 6, // VOICE_RECOGNITION
+          bufferSize: 4096,
+          wavFile: "", // Empty string means we handle WAV creation ourselves
+        } as any);
+
+        LiveAudioStream.on("data", (base64Data: string) => {
+          const audioChunk = base64ToUint8Array(base64Data);
+          audioDataRef.current.push(audioChunk);
+        });
+
+        LiveAudioStream.start();
+        setIsRecording(true);
+        isRecordingRef.current = true;
+        setCountdown(RECORDING_DURATION);
+        setStatusMessage(`Recording sample ${currentSampleIndex + 1}...`);
+
+        setSamples((prev) => {
+          const updated = [...prev];
+          updated[currentSampleIndex] = {
+            ...updated[currentSampleIndex],
+            status: "recording",
+          };
+          return updated;
+        });
+
+        // Use a separate timer for auto-stop to avoid closure issues
+        const autoStopTimeout = setTimeout(() => {
+          console.log("⏰ Auto-stop timer fired, stopping recording...");
+          if (isRecordingRef.current) {
+            stopRecording();
+          }
+        }, RECORDING_DURATION * 1000);
+
+        countdownRef.current = setInterval(() => {
+          setCountdown((prev) => {
+            const newValue = prev - 1;
+            if (newValue <= 0) {
+              if (countdownRef.current) {
+                clearInterval(countdownRef.current);
+                countdownRef.current = null;
+              }
+              return 0;
+            }
+            return newValue;
+          });
+        }, 1000);
+
+        Toast.show({
+          type: "info",
+          text1: "Recording",
+          text2: `Sample ${currentSampleIndex + 1}/${totalSamples}`,
+        });
+        
+        console.log("🎤 Android WAV Recording started");
+        return;
+      }
+
+      // iOS: Use expo-av with LINEARPCM for WAV
       const recordingOptions = {
         android: {
           extension: ".wav",
@@ -240,7 +446,7 @@ export const VoiceRegistrationScreen = () => {
         },
       };
 
-      console.log("🎙️ Creating recording...");
+      console.log("🎙️ Creating iOS recording...");
       const { recording: newRecording } = await Audio.Recording.createAsync(
         recordingOptions
       );
@@ -315,6 +521,174 @@ export const VoiceRegistrationScreen = () => {
   };
 
   const stopRecording = async () => {
+    // For Android using LiveAudioStream
+    if (Platform.OS === "android") {
+      if (!isRecording && !isRecordingRef.current) {
+        console.log("⚠️ stopRecording called but not recording");
+        return;
+      }
+
+      if (samples[currentSampleIndex]?.status === "processing") {
+        console.log("⚠️ Already processing, cannot stop");
+        return;
+      }
+
+      try {
+        if (countdownRef.current) {
+          clearInterval(countdownRef.current);
+          countdownRef.current = null;
+        }
+
+        setIsRecording(false);
+        isRecordingRef.current = false;
+        setCountdown(0);
+        setStatusMessage(`Processing audio...`);
+
+        setSamples((prev) => {
+          const updated = [...prev];
+          updated[currentSampleIndex] = {
+            ...updated[currentSampleIndex],
+            status: "processing",
+          };
+          return updated;
+        });
+
+        // Stop LiveAudioStream
+        LiveAudioStream.stop();
+        console.log("🛑 LiveAudioStream stopped");
+
+        // Calculate total data length
+        let totalLength = 0;
+        for (const chunk of audioDataRef.current) {
+          totalLength += chunk.length;
+        }
+
+        if (totalLength === 0) {
+          throw new Error("No audio data captured. Please try again.");
+        }
+
+        const durationSeconds = (Date.now() - recordingStartTimeRef.current) / 1000;
+        console.log(`📊 Captured ${totalLength} bytes, duration: ${durationSeconds.toFixed(1)}s`);
+
+        if (durationSeconds < 10) {
+          throw new Error(
+            `Recording too short (${durationSeconds.toFixed(1)}s). Please record at least 10 seconds.`
+          );
+        }
+
+        setStatusMessage(`Creating WAV file...`);
+
+        // Combine all chunks
+        const combinedData = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of audioDataRef.current) {
+          combinedData.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        // Create WAV file with header
+        const wavHeader = createWavHeader(totalLength);
+        const wavFile = new Uint8Array(wavHeader.length + combinedData.length);
+        wavFile.set(wavHeader, 0);
+        wavFile.set(combinedData, wavHeader.length);
+
+        // Convert to base64 and save
+        const wavBase64 = uint8ArrayToBase64(wavFile);
+        const wavUri = `${FileSystem.cacheDirectory}voice-sample-${Date.now()}.wav`;
+
+        await FileSystem.writeAsStringAsync(wavUri, wavBase64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        // Verify file
+        const fileInfo = await FileSystem.getInfoAsync(wavUri);
+        console.log("✅ WAV file created:", {
+          uri: wavUri,
+          size: (fileInfo as any).size,
+        });
+
+        // Clear audio data
+        audioDataRef.current = [];
+
+        if (!user?.id) {
+          throw new Error("User information not found");
+        }
+
+        setStatusMessage(`Uploading sample ${currentSampleIndex + 1} to server...`);
+        console.log("📤 Uploading WAV sample to server...");
+        
+        const response = await voiceService.registerVoiceSample({
+          audioUri: wavUri,
+          userId: user.id,
+          token,
+        });
+
+        if (response.error) {
+          throw new Error(response.error);
+        }
+
+        const enrollmentCount = Number(
+          response.enrollment_count ?? response.enrollmentCount ?? 0
+        );
+        const isComplete = response.is_complete ?? response.completed ?? false;
+        const minRequired = Number(response.min_required ?? 3);
+
+        console.log("📊 Enrollment response:", {
+          enrollmentCount,
+          isComplete,
+          minRequired,
+          message: response.message,
+        });
+
+        let nextSampleIndex = -1;
+        setSamples((prev) => {
+          const updated = [...prev];
+          updated[currentSampleIndex] = {
+            ...updated[currentSampleIndex],
+            status: "completed",
+            uri: wavUri,
+          };
+          nextSampleIndex = updated.findIndex(
+            (s) => s.status === "pending" || s.status === "failed"
+          );
+          return updated;
+        });
+
+        setStatusMessage(`Sample ${currentSampleIndex + 1} saved successfully.`);
+        resetRecording();
+        Toast.show({
+          type: "success",
+          position: "top",
+          text1: `Sample ${currentSampleIndex + 1} saved`,
+          text2: `Recorded ${enrollmentCount}/${totalSamples} samples`,
+        });
+
+        if (isComplete && enrollmentCount >= minRequired) {
+          setStatusMessage("Voice registration completed!");
+          Toast.show({
+            type: "success",
+            position: "top",
+            text1: "Voice registration successful",
+            text2: `Registered ${enrollmentCount} voice samples. Redirecting to dashboard...`,
+          });
+          setTimeout(() => {
+            navigation.replace("Dashboard");
+          }, 1200);
+        } else if (nextSampleIndex >= 0) {
+          setCurrentSampleIndex(nextSampleIndex);
+          setStatusMessage(
+            `Recorded ${enrollmentCount}/${totalSamples} samples. Press button to record next sample.`
+          );
+        }
+        return;
+      } catch (error: any) {
+        console.error("❌ Failed to stop/upload Android recording:", error);
+        handleRecordingError(error);
+        return;
+      }
+    }
+
+    // iOS: Use expo-av
     const currentRecording = recordingRef.current || recording;
 
     if (!currentRecording && !isRecording) {

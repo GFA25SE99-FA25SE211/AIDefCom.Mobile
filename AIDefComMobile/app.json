@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -41,15 +41,17 @@
     "extra": {
       "googleWebClientId": "610663420023-dln5441dchtaue3abv4hiv9sak0f8v17.apps.googleusercontent.com",
       "googleIosClientId": "610663420023-dl82fv2cd71m1nqm5mivjq4mve19f2un.apps.googleusercontent.com",
-      "googleAndroidClientId": "610663420023-dln5441dchtaue3abv4hiv9sak0f8v17.apps.googleusercontent.com"
+      "googleAndroidClientId": "610663420023-dln5441dchtaue3abv4hiv9sak0f8v17.apps.googleusercontent.com",
+      "eas": {
+        "projectId": "651e385b-0203-4a42-ae06-7f791fb6cc82"
+      }
     },
     "scheme": "aidefcommobile",
-    "packagerOpts": {
-      "config": "metro.config.js"
-    },
     "plugins": [
       "expo-dev-client",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font",
+      "expo-asset"
     ]
   }
 }

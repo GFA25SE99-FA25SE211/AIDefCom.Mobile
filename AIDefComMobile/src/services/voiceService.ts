@@ -24,14 +24,17 @@ interface VoiceRegistrationPayload {
 const buildFormData = (audioUri: string): FormData => {
   const formData = new FormData();
 
-  const isWav = audioUri.toLowerCase().endsWith('.wav');
-  const fileName = isWav ? "voice-sample.wav" : "voice-sample.m4a";
-  const mimeType = isWav ? "audio/wav" : "audio/m4a";
+  // Always send as WAV since we now create proper WAV files on both platforms
+  console.log("📤 Uploading audio file:", { 
+    uri: audioUri, 
+    fileName: "voice-sample.wav",
+    mimeType: "audio/wav",
+  });
 
   formData.append("audio_file", {
     uri: audioUri,
-    name: fileName,
-    type: mimeType,
+    name: "voice-sample.wav",
+    type: "audio/wav",
   } as any);
 
   return formData;
