@@ -96,7 +96,7 @@ export const VoiceRegistrationScreen = () => {
   const { token, user } = useAuth();
   const totalSamples = VOICE_AUTH_CONFIG.REQUIRED_SAMPLES;
   const prompts = VOICE_AUTH_CONFIG.PROMPTS;
-  
+
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [currentSampleIndex, setCurrentSampleIndex] = useState(0);
@@ -114,7 +114,7 @@ export const VoiceRegistrationScreen = () => {
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const progressAnimation = useRef(new Animated.Value(0)).current;
-  
+
   // For Android WAV recording using LiveAudioStream
   const audioDataRef = useRef<Uint8Array[]>([]);
   const recordingStartTimeRef = useRef<number>(0);
@@ -184,15 +184,15 @@ export const VoiceRegistrationScreen = () => {
             }
             return updated;
           });
-          
+
           // Set current index to the next pending sample
           setCurrentSampleIndex(enrollmentCount);
-          
+
           const remaining = minRequired - enrollmentCount;
           setStatusMessage(
             `Already have ${enrollmentCount}/${minRequired} samples. Need ${remaining} more. Press button to continue.`
           );
-          
+
           Toast.show({
             type: "info",
             text1: `${enrollmentCount} samples already registered`,
@@ -237,14 +237,15 @@ export const VoiceRegistrationScreen = () => {
 
   const handleRecordingError = (error: any) => {
     const errorMessage = error.message || "";
-    const isMaxEnrollmentReached =
-      errorMessage.includes("Maximum enrollment limit") ||
-      errorMessage.includes("Đã đủ 3 samples") ||
-      errorMessage.includes("Đã đủ 3 mẫu");
+    const isMaxEnrollmentReached = errorMessage.includes(
+      "Maximum enrollment limit"
+    );
 
     if (isMaxEnrollmentReached) {
       console.log("✅ User already has 3 samples - redirecting to VoiceAuth");
-      setStatusMessage("Already have 3 voice samples. Redirecting to authentication...");
+      setStatusMessage(
+        "Already have 3 voice samples. Redirecting to authentication..."
+      );
       Toast.show({
         type: "info",
         position: "top",
@@ -353,11 +354,13 @@ export const VoiceRegistrationScreen = () => {
       // Android: Use LiveAudioStream to capture raw PCM and create WAV
       // iOS: Use expo-av which creates WAV properly
       if (Platform.OS === "android") {
-        console.log("🎙️ Starting Android WAV recording with LiveAudioStream...");
-        
+        console.log(
+          "🎙️ Starting Android WAV recording with LiveAudioStream..."
+        );
+
         audioDataRef.current = [];
         recordingStartTimeRef.current = Date.now();
-        
+
         LiveAudioStream.init({
           sampleRate: SAMPLE_RATE,
           channels: CHANNELS,
@@ -414,7 +417,7 @@ export const VoiceRegistrationScreen = () => {
           text1: "Recording",
           text2: `Sample ${currentSampleIndex + 1}/${totalSamples}`,
         });
-        
+
         console.log("🎤 Android WAV Recording started");
         return;
       }
@@ -567,12 +570,19 @@ export const VoiceRegistrationScreen = () => {
           throw new Error("No audio data captured. Please try again.");
         }
 
-        const durationSeconds = (Date.now() - recordingStartTimeRef.current) / 1000;
-        console.log(`📊 Captured ${totalLength} bytes, duration: ${durationSeconds.toFixed(1)}s`);
+        const durationSeconds =
+          (Date.now() - recordingStartTimeRef.current) / 1000;
+        console.log(
+          `📊 Captured ${totalLength} bytes, duration: ${durationSeconds.toFixed(
+            1
+          )}s`
+        );
 
         if (durationSeconds < 10) {
           throw new Error(
-            `Recording too short (${durationSeconds.toFixed(1)}s). Please record at least 10 seconds.`
+            `Recording too short (${durationSeconds.toFixed(
+              1
+            )}s). Please record at least 10 seconds.`
           );
         }
 
@@ -594,7 +604,9 @@ export const VoiceRegistrationScreen = () => {
 
         // Convert to base64 and save
         const wavBase64 = uint8ArrayToBase64(wavFile);
-        const wavUri = `${FileSystem.cacheDirectory}voice-sample-${Date.now()}.wav`;
+        const wavUri = `${
+          FileSystem.cacheDirectory
+        }voice-sample-${Date.now()}.wav`;
 
         await FileSystem.writeAsStringAsync(wavUri, wavBase64, {
           encoding: FileSystem.EncodingType.Base64,
@@ -614,9 +626,11 @@ export const VoiceRegistrationScreen = () => {
           throw new Error("User information not found");
         }
 
-        setStatusMessage(`Uploading sample ${currentSampleIndex + 1} to server...`);
+        setStatusMessage(
+          `Uploading sample ${currentSampleIndex + 1} to server...`
+        );
         console.log("📤 Uploading WAV sample to server...");
-        
+
         const response = await voiceService.registerVoiceSample({
           audioUri: wavUri,
           userId: user.id,
@@ -654,7 +668,9 @@ export const VoiceRegistrationScreen = () => {
           return updated;
         });
 
-        setStatusMessage(`Sample ${currentSampleIndex + 1} saved successfully.`);
+        setStatusMessage(
+          `Sample ${currentSampleIndex + 1} saved successfully.`
+        );
         resetRecording();
         Toast.show({
           type: "success",
@@ -839,10 +855,9 @@ export const VoiceRegistrationScreen = () => {
       console.error("❌ Failed to stop/upload recording:", error);
 
       const errorMessage = error.message || "";
-      const isMaxEnrollmentReached =
-        errorMessage.includes("Maximum enrollment limit") ||
-        errorMessage.includes("Đã đủ 3 samples") ||
-        errorMessage.includes("Đã đủ 3 mẫu");
+      const isMaxEnrollmentReached = errorMessage.includes(
+        "Maximum enrollment limit"
+      );
 
       if (isMaxEnrollmentReached) {
         console.log("✅ User already has 3 samples - redirecting to VoiceAuth");
@@ -1032,10 +1047,10 @@ export const VoiceRegistrationScreen = () => {
           </TouchableOpacity>
           <Text style={styles.cardTitle}>
             {isRecording
-              ? "Đang ghi âm..."
+              ? "Recording..."
               : samples[currentSampleIndex]?.status === "processing"
-              ? "Đang xử lý..."
-              : "Nhấn để bắt đầu ghi âm"}
+              ? "Processing..."
+              : "Press to start recording"}
           </Text>
           <Text style={styles.cardSubtitle}>
             Sample {currentSampleIndex + 1} / {totalSamples}
