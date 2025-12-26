@@ -24,14 +24,17 @@ interface VoiceRegistrationPayload {
 const buildFormData = (audioUri: string): FormData => {
   const formData = new FormData();
 
-  const isWav = audioUri.toLowerCase().endsWith('.wav');
-  const fileName = isWav ? "voice-sample.wav" : "voice-sample.m4a";
-  const mimeType = isWav ? "audio/wav" : "audio/m4a";
+  // Always send as WAV since we now create proper WAV files on both platforms
+  console.log("📤 Uploading audio file:", {
+    uri: audioUri,
+    fileName: "voice-sample.wav",
+    mimeType: "audio/wav",
+  });
 
   formData.append("audio_file", {
     uri: audioUri,
-    name: fileName,
-    type: mimeType,
+    name: "voice-sample.wav",
+    type: "audio/wav",
   } as any);
 
   return formData;
@@ -55,22 +58,22 @@ const handleResponse = async (response: Response, fallbackMessage: string) => {
   } catch {
   }
 
-  
+
   if (!response.ok) {
     if (status === 400 && json) {
       if (!json.error) {
-      if (json.enrollment_count !== undefined || json.completed !== undefined || json.id) {
-        console.log("⚠️ Backend returned 400 but response looks like success (missing success field)", json);
-        json.type = json.type || "enrollment";
-        json.success = true;
-        json.user_id = json.user_id || json.id;
-        json.min_required = json.min_required || 3;
-        json.is_complete = json.is_complete !== undefined ? json.is_complete : json.completed;
-        console.log("✅ Normalized response as success", json);
-        return json as VoiceResponse;
+        if (json.enrollment_count !== undefined || json.completed !== undefined || json.id) {
+          console.log("⚠️ Backend returned 400 but response looks like success (missing success field)", json);
+          json.type = json.type || "enrollment";
+          json.success = true;
+          json.user_id = json.user_id || json.id;
+          json.min_required = json.min_required || 3;
+          json.is_complete = json.is_complete !== undefined ? json.is_complete : json.completed;
+          console.log("✅ Normalized response as success", json);
+          return json as VoiceResponse;
         }
       }
-      
+
       const errorMsg = json.error || json.message || "";
       if (
         errorMsg.includes("Maximum enrollment limit") ||
@@ -95,7 +98,7 @@ const handleResponse = async (response: Response, fallbackMessage: string) => {
 
     if (json) {
       if (status === 422 && json.detail) {
-        const details = Array.isArray(json.detail) 
+        const details = Array.isArray(json.detail)
           ? json.detail.map((d: any) => d.msg || d.message).join(", ")
           : JSON.stringify(json.detail);
         errorMessage = `Validation error: ${details}`;
@@ -107,11 +110,11 @@ const handleResponse = async (response: Response, fallbackMessage: string) => {
     }
 
     if (status === 502) {
-      errorMessage = "Backend service không khả dụng (Bad Gateway). Vui lòng thử lại sau.";
+      errorMessage = "Backend service unavailable (Bad Gateway). Please try again later.";
     } else if (status === 503) {
-      errorMessage = "Backend service đang tạm thời không khả dụng. Vui lòng thử lại sau.";
+      errorMessage = "Backend service is temporarily unavailable. Please try again later.";
     } else if (status === 504) {
-      errorMessage = "Backend service timeout. Vui lòng thử lại sau.";
+      errorMessage = "Backend service timeout. Please try again later.";
     }
 
     console.error("Voice service error", {
@@ -140,7 +143,7 @@ const handleResponse = async (response: Response, fallbackMessage: string) => {
     if (!json.min_required) {
       json.min_required = 3;
     }
-    
+
     console.log("✅ Voice service response", { url, status, body: json });
     return json as VoiceResponse;
   }
@@ -182,7 +185,7 @@ export const voiceService = {
 
         clearTimeout(timeoutId);
 
-        const isRetryableError = 
+        const isRetryableError =
           response.status === 502 ||
           response.status === 503 ||
           response.status === 504;
@@ -199,8 +202,8 @@ export const voiceService = {
         return handleResponse(response, "Voice registration failed");
       } catch (error: any) {
         lastError = error;
-        
-        const isTimeoutError = 
+
+        const isTimeoutError =
           error.name === "AbortError" ||
           error.message?.includes("timeout") ||
           error.message?.includes("aborted");
@@ -243,16 +246,16 @@ export const voiceService = {
     const formData = buildFormData(audioUri);
 
     const verifyUrl = `${VOICE_AUTH_CONFIG.BASE_URL}${VOICE_AUTH_CONFIG.AUTH_PATH(userId)}`;
-    
+
     console.log("🔐 Verifying voice sample using VERIFY API:", verifyUrl);
 
     const response = await fetch(verifyUrl, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: formData,
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
     });
 
     return handleResponse(response, "Voice verification failed");
@@ -344,19 +347,19 @@ export const voiceService = {
         }
 
         lastError = fetchError;
-        
+
         const isAbortError =
           fetchError.name === "AbortError" ||
           fetchError.name === "DOMException" ||
           fetchError.message?.includes("aborted") ||
           fetchError.message?.includes("timeout");
-        
+
         const isNetworkError =
           fetchError.message?.includes("network") ||
           fetchError.message?.includes("fetch") ||
           fetchError.message?.includes("Failed to fetch") ||
           fetchError.message?.includes("Network request failed");
-        
+
         if (isAbortError) {
           console.warn(`⏰ Attempt ${attempt + 1} timed out or aborted`);
           if (attempt < MAX_ATTEMPTS - 1) {
@@ -364,23 +367,23 @@ export const voiceService = {
           }
           break;
         }
-        
+
         if (isNetworkError && attempt < MAX_ATTEMPTS - 1) {
           console.warn(`⚠️ Network error on attempt ${attempt + 1}, will retry...`);
           continue;
         }
-        
+
         throw fetchError;
       }
     }
-    
+
     const totalDuration = Date.now() - startTime;
     console.warn(`⚠️ All ${MAX_ATTEMPTS} attempts failed after ${totalDuration}ms - defaulting to not enrolled`);
     console.error("❌ Last error:", {
       name: lastError?.name,
       message: lastError?.message,
     });
-    
+
     return {
       user_id: userId,
       enrollment_status: "not_enrolled",

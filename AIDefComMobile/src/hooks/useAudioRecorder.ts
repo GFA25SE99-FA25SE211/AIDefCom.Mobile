@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Audio } from "expo-av";
+import { Platform } from "react-native";
+import LiveAudioStream from "react-native-live-audio-stream";
 import * as FileSystem from "expo-file-system/legacy";
 
 interface UseAudioRecorderProps {
@@ -7,6 +9,10 @@ interface UseAudioRecorderProps {
   onWsEvent?: (msg: any) => void;
   autoConnect?: boolean;
 }
+
+const SAMPLE_RATE = 16000;
+const CHANNELS = 1;
+const BITS_PER_SAMPLE = 16;
 
 const base64ToUint8Array = (base64: string): Uint8Array => {
   const binaryString = atob(base64);
@@ -33,6 +39,8 @@ export const useAudioRecorder = ({
   const streamingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastSentBytesRef = useRef<number>(0);
   const audioBufferRef = useRef<Uint8Array>(new Uint8Array(0));
+  const isRecordingRef = useRef<boolean>(false); // Track recording state with ref for callbacks
+  const liveAudioStreamInitialized = useRef<boolean>(false);
 
   useEffect(() => {
     onWsEventRef.current = onWsEvent;
@@ -162,6 +170,13 @@ export const useAudioRecorder = ({
         streamingIntervalRef.current = null;
       }
 
+      // Cleanup Android LiveAudioStream
+      if (Platform.OS === "android" && isRecordingRef.current) {
+        try {
+          LiveAudioStream.stop();
+        } catch (e) {}
+      }
+
       if (wsRef.current) {
         try {
           wsRef.current.close();
@@ -171,6 +186,8 @@ export const useAudioRecorder = ({
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync().catch(() => {});
       }
+      
+      isRecordingRef.current = false;
     };
   }, []);
 
@@ -201,21 +218,67 @@ export const useAudioRecorder = ({
         playThroughEarpieceAndroid: false,
       });
 
+      // Android: Use LiveAudioStream for real-time streaming (works in APK build)
+      if (Platform.OS === "android") {
+        console.log("🎙️ Starting Android recording with LiveAudioStream...");
+        
+        if (!liveAudioStreamInitialized.current) {
+          LiveAudioStream.init({
+            sampleRate: SAMPLE_RATE,
+            channels: CHANNELS,
+            bitsPerSample: BITS_PER_SAMPLE,
+            audioSource: 6, // VOICE_RECOGNITION
+            bufferSize: 4096,
+            wavFile: "", // Empty string means we handle audio ourselves
+          } as any);
+          liveAudioStreamInitialized.current = true;
+        }
+
+        LiveAudioStream.on("data", (base64Data: string) => {
+          if (!isRecordingRef.current) return;
+          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+          
+          try {
+            const audioChunk = base64ToUint8Array(base64Data);
+            if (audioChunk.length > 0) {
+              // Send raw PCM data directly to WebSocket
+              const CHUNK_SIZE = 640;
+              for (let i = 0; i < audioChunk.length; i += CHUNK_SIZE) {
+                const chunk = audioChunk.slice(i, Math.min(i + CHUNK_SIZE, audioChunk.length));
+                if (chunk.length > 0 && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                  wsRef.current.send(chunk.buffer);
+                }
+              }
+              console.log(`📤 [Android] Sent ${audioChunk.length} bytes`);
+            }
+          } catch (err) {
+            console.warn("Audio streaming error:", err);
+          }
+        });
+
+        LiveAudioStream.start();
+        setIsRecording(true);
+        isRecordingRef.current = true;
+        console.log("🎤 Android recording started with LiveAudioStream");
+        return;
+      }
+
+      // iOS: Use expo-av Recording
       const recordingOptions = {
         android: {
           extension: ".wav",
           outputFormat: Audio.AndroidOutputFormat.DEFAULT,
           audioEncoder: Audio.AndroidAudioEncoder.DEFAULT,
-          sampleRate: 16000,
-          numberOfChannels: 1,
+          sampleRate: SAMPLE_RATE,
+          numberOfChannels: CHANNELS,
           bitRate: 128000,
         },
         ios: {
           extension: ".wav",
           outputFormat: Audio.IOSOutputFormat.LINEARPCM,
           audioQuality: Audio.IOSAudioQuality.HIGH,
-          sampleRate: 16000,
-          numberOfChannels: 1,
+          sampleRate: SAMPLE_RATE,
+          numberOfChannels: CHANNELS,
           bitRate: 128000,
           linearPCMBitDepth: 16,
           linearPCMIsBigEndian: false,
@@ -277,7 +340,7 @@ export const useAudioRecorder = ({
                 }
 
                 console.log(
-                  `📤 Sent ${newAudioChunk.length} bytes (from ${lastSentBytesRef.current} to ${currentLength})`
+                  `📤 [iOS] Sent ${newAudioChunk.length} bytes (from ${lastSentBytesRef.current} to ${currentLength})`
                 );
                 lastSentBytesRef.current = currentLength;
               }
@@ -289,7 +352,8 @@ export const useAudioRecorder = ({
       }, 300);
 
       setIsRecording(true);
-      console.log("🎤 Recording started with audio streaming");
+      isRecordingRef.current = true;
+      console.log("🎤 iOS recording started with audio streaming");
     } catch (error: any) {
       console.error("❌ Failed to start recording:", error);
       throw error;
@@ -298,6 +362,26 @@ export const useAudioRecorder = ({
 
   const stopRecording = useCallback(async () => {
     try {
+      // Android: Stop LiveAudioStream
+      if (Platform.OS === "android") {
+        if (!isRecordingRef.current) {
+          console.log("⚠️ stopRecording called but not recording (Android)");
+          return;
+        }
+        
+        try {
+          LiveAudioStream.stop();
+        } catch (err) {
+          console.warn("Error stopping LiveAudioStream:", err);
+        }
+        
+        setIsRecording(false);
+        isRecordingRef.current = false;
+        console.log("🛑 Android recording stopped");
+        return;
+      }
+
+      // iOS: Stop expo-av Recording
       if (streamingIntervalRef.current) {
         clearInterval(streamingIntervalRef.current);
         streamingIntervalRef.current = null;
@@ -329,7 +413,7 @@ export const useAudioRecorder = ({
                 if (remainingChunk.length > 0) {
                   wsRef.current.send(remainingChunk.buffer);
                   console.log(
-                    `📤 Sent final audio chunk: ${remainingChunk.length} bytes`
+                    `📤 [iOS] Sent final audio chunk: ${remainingChunk.length} bytes`
                   );
                 }
               }
@@ -346,7 +430,8 @@ export const useAudioRecorder = ({
       audioBufferRef.current = new Uint8Array(0);
 
       setIsRecording(false);
-      console.log("🛑 Recording stopped (WebSocket still open)");
+      isRecordingRef.current = false;
+      console.log("🛑 iOS recording stopped (WebSocket still open)");
     } catch (error) {
       console.error("Error stopping recording:", error);
     }
