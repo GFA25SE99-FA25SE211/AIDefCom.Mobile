@@ -229,7 +229,7 @@ export const VoiceRegistrationScreen = () => {
         ? user.email.split("@")[0]
         : undefined;
     const displayName = user?.fullName || emailName || "me";
-    return raw.replace("{Tên người nói}", displayName);
+    return raw.replace("{Speaker Name}", displayName);
   };
 
   const currentPrompt = getPromptForIndex(currentSampleIndex);
@@ -240,6 +240,17 @@ export const VoiceRegistrationScreen = () => {
     const isMaxEnrollmentReached = errorMessage.includes(
       "Maximum enrollment limit"
     );
+
+    if (errorMessage.includes("VOICE_NOT_UNIQUE") || errorMessage.includes("Voice is too similar")) {
+      setStatusMessage("Voice similarity error: this voice is too similar to another user. Please record again with your natural voice.");
+      Toast.show({
+        type: "error",
+        position: "top",
+        text1: "Voice Conflict",
+        text2: "Your voice is too similar to another user. Please try again with your natural voice.",
+      });
+      return;
+    }
 
     if (isMaxEnrollmentReached) {
       console.log("✅ User already has 3 samples - redirecting to VoiceAuth");

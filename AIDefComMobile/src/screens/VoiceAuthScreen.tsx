@@ -152,7 +152,7 @@ export const VoiceAuthScreen = () => {
         ? user.email.split("@")[0]
         : undefined;
     const displayName = user?.fullName || emailName || "me";
-    return raw.replace("{Tên người nói}", displayName);
+    return raw.replace("{Speaker Name}", displayName);
   };
 
   const currentPrompt = getPromptForIndex(0); // Always use first prompt for verification
